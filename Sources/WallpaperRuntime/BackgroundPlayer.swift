@@ -40,6 +40,7 @@ public struct BackgroundPlayerPaths {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("VideoWallpaper/state.json")
     }
+    public static let statusChangedNotification = Notification.Name("local.zongzihao.WallFlow.statusChanged")
     public static let commandNotification = Notification.Name("local.zongzihao.WallFlow.playerCommand")
     public static let stoppedNotification = Notification.Name("local.zongzihao.WallFlow.playerStopped")
     public static let stoppingNotification = Notification.Name("local.zongzihao.WallFlow.playerStopping")

@@ -30,6 +30,8 @@ public enum LibraryMode { case standalone, management, player }
     private var lowPowerMode = false
     private var terminating = false
     private var pendingReloadBaseline: AppState?
+    private var stateFileMonitor = StateFileChangeMonitor()
+    public var onPlaybackStatusChange: (() -> Void)?
 
     public init(storeURL: URL, mode: LibraryMode = .standalone) {
         self.storeURL = storeURL
@@ -48,7 +50,10 @@ public enum LibraryMode { case standalone, management, player }
         }
         intent.manuallyPaused = state.manuallyPaused
         engine.onError = { [weak self] message in self?.errorMessage = message }
-        engine.onPlaybackChange = { [weak self] in self?.objectWillChange.send() }
+        engine.onPlaybackChange = { [weak self] in
+            self?.objectWillChange.send()
+            self?.onPlaybackStatusChange?()
+        }
         engine.setOcclusionPolicy(state.performance.pauseWhenOccluded)
         engine.setMuted(state.isMuted)
     }
@@ -270,7 +275,10 @@ public enum LibraryMode { case standalone, management, player }
         if reasons.contains(.lowPowerMode) { intent.suspensions.insert("lowPowerMode") }
         applyRuntimePolicy()
     }
-    public func setExternalPlaybackStatus(_ status: [String: String]) { externalPlaybackStatus = status }
+    public func setExternalPlaybackStatus(_ status: [String: String]) {
+        guard externalPlaybackStatus != status else { return }
+        externalPlaybackStatus = status
+    }
     public func playbackStatus(for displayID: String) -> String {
         if mode == .management { return externalPlaybackStatus[displayID] ?? "等待后台播放" }
         if applicationEffects.stopped { return "应用规则 · 已释放" }
@@ -389,9 +397,17 @@ public enum LibraryMode { case standalone, management, player }
             refreshApplicationEffects()
         }
     }
+    public func reloadSharedStateIfChanged() async {
+        guard !terminating else { return }
+        do {
+            guard try stateFileMonitor.consumeChange(at: storeURL) else { return }
+            await reloadSharedState()
+        } catch { stateFileMonitor.invalidate(); errorMessage = error.localizedDescription }
+    }
     public func reloadSharedState() async {
         guard !terminating else { return }
         do {
+            _ = try stateFileMonitor.consumeChange(at: storeURL)
             let fresh = try StateStore.load(from: storeURL)
             let old = pendingReloadBaseline ?? state
             pendingReloadBaseline = nil
@@ -413,7 +429,7 @@ public enum LibraryMode { case standalone, management, player }
             if old.projects != fresh.projects || (mode != .management && assignmentChanged) {
                 await restore(revalidate: false)
             } else { applyRuntimePolicy() }
-        } catch { errorMessage = error.localizedDescription }
+        } catch { stateFileMonitor.invalidate(); errorMessage = error.localizedDescription }
     }
     private func beginOperation() -> Int {
         generation += 1

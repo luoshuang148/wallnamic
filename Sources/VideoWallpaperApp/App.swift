@@ -28,6 +28,9 @@ import WallpaperRuntime
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
+    private var refreshPolicy = RuntimeRefreshPolicy()
+    private var forceSharedReload = false
+    private var refreshAgain = false
     private var startupTask: Task<Void, Never>?
     private var connectedSession: UUID?
     private var lastPlayerError: String?
@@ -62,7 +65,8 @@ import WallpaperRuntime
         window.contentView = NSHostingView(rootView: LibraryView(model: model, workshop: workshop, startup: startup, exit: exit))
         window.center()
         setupLifecycle()
-        timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in Task { @MainActor in self?.requestRefresh() } }
+        timer = Timer(timeInterval: RuntimeRefreshPolicy.heartbeatInterval, repeats: true) { [weak self] _ in Task { @MainActor in self?.requestRefresh() } }
+        timer?.tolerance = RuntimeRefreshPolicy.timerTolerance
         RunLoop.main.add(timer!, forMode: .common)
         if !backgroundLogin { showLibrary() }
         startupTask = Task { [weak self] in
@@ -125,7 +129,8 @@ import WallpaperRuntime
         observe(DistributedNotificationCenter.default(), Notification.Name("com.apple.screenIsLocked")) { $0.model.setSuspended("lock", active: true) }
         observe(DistributedNotificationCenter.default(), Notification.Name("com.apple.screenIsUnlocked")) { $0.model.setSuspended("lock", active: false) }
         observe(.default, NSApplication.didChangeScreenParametersNotification) { $0.model.refreshDisplays() }
-        observe(DistributedNotificationCenter.default(), Notification.Name(SharedStateStore.notification), object: model.storeURL.path) { $0.requestRefresh() }
+        observe(DistributedNotificationCenter.default(), Notification.Name(SharedStateStore.notification), object: model.storeURL.path) { $0.requestRefresh(forceShared: true) }
+        observe(DistributedNotificationCenter.default(), BackgroundPlayerPaths.statusChangedNotification, object: model.storeURL.path) { $0.requestRefresh() }
         observePlayerExit(BackgroundPlayerPaths.stoppingNotification) { $0.quiesce() }
         let center = DistributedNotificationCenter.default()
         let stopped = center.addObserver(forName: BackgroundPlayerPaths.stoppedNotification, object: model.storeURL.path, queue: .main) { [weak self] notification in
@@ -153,23 +158,31 @@ import WallpaperRuntime
             Task { @MainActor in if let self, !self.terminationStarted { action(self) } }
         }))
     }
-    private func requestRefresh() {
-        guard !terminationStarted, managementRestored, refreshTask == nil else { return }
+    private func requestRefresh(forceShared: Bool = false) {
+        guard !terminationStarted, managementRestored else { return }
+        forceSharedReload = forceSharedReload || forceShared
+        refreshAgain = true
+        guard refreshTask == nil else { return }
         refreshTask = Task { [weak self] in
             guard let self else { return }
             defer { self.refreshTask = nil }
-            await self.model.reloadSharedState()
-            do {
-                try self.player.refreshStatus()
-                if let status = self.player.status {
-                    self.connectedSession = status.sessionID
-                    self.model.setExternalPlaybackStatus(status.displays.mapValues(\.message))
-                    if let error = status.error, error != self.lastPlayerError { self.model.errorMessage = error }
-                    self.lastPlayerError = status.error
-                } else {
-                    self.model.setExternalPlaybackStatus([:])
-                }
-            } catch { self.model.errorMessage = error.localizedDescription }
+            repeat {
+                self.refreshAgain = false
+                let force = self.forceSharedReload; self.forceSharedReload = false
+                if force { await self.model.reloadSharedState() }
+                else if self.refreshPolicy.sharedStateCheckDue(now: Date()) { await self.model.reloadSharedStateIfChanged() }
+                do {
+                    try self.player.refreshStatus()
+                    if let status = self.player.status {
+                        self.connectedSession = status.sessionID
+                        self.model.setExternalPlaybackStatus(status.displays.mapValues(\.message))
+                        if let error = status.error, error != self.lastPlayerError { self.model.errorMessage = error }
+                        self.lastPlayerError = status.error
+                    } else {
+                        self.model.setExternalPlaybackStatus([:])
+                    }
+                } catch { self.model.errorMessage = error.localizedDescription }
+            } while self.refreshAgain && !Task.isCancelled && !self.terminationStarted
         }
     }
     private func quiesce() { workshop?.shutdown(); model?.shutdown() }

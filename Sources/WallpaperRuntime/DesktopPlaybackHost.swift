@@ -10,23 +10,27 @@ import WallpaperCore
     public private(set) var phase: PlayerPhase = .starting
     private let parentAppURL: URL
     private let build: String
+    private let statusWriter: (PlayerStatus) throws -> Void
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var powerMonitor: PowerMonitor?
     private var applicationMonitor: ApplicationMonitor?
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
     private var needsRefresh = false
-    private var lastPlaylistTick = Date.distantPast
+    private var refreshPolicy = RuntimeRefreshPolicy()
+    private var forceReload = false
     private var stopScheduled = false
     public var onStopRequested: (() -> Void)?
 
-    public init(paths: BackgroundPlayerPaths, parentAppURL: URL, build: String, sessionID: UUID) {
+    public init(paths: BackgroundPlayerPaths, parentAppURL: URL, build: String, sessionID: UUID, statusWriter: ((PlayerStatus) throws -> Void)? = nil) {
+        self.statusWriter = statusWriter ?? { try paths.writeStatus($0) }
         self.sessionID = sessionID
         self.paths = paths; self.parentAppURL = parentAppURL; self.build = build
         model = LibraryModel(storeURL: paths.stateURL, mode: .player)
     }
     public func start() async throws {
         try publishStatus()
+        model.onPlaybackStatusChange = { [weak self] in self?.requestRefresh(force: false) }
         powerMonitor = PowerMonitor { [weak self] battery, lowPower in self?.model.updatePowerState(onBattery: battery, lowPowerMode: lowPower) }
         powerMonitor?.start()
         applicationMonitor = ApplicationMonitor { [weak self] running, frontmost in self?.model.updateApplications(running: running, frontmost: frontmost) }
@@ -43,9 +47,10 @@ import WallpaperCore
         observe(.default, NSApplication.didChangeScreenParametersNotification) { $0.model.refreshDisplays() }
         observe(DistributedNotificationCenter.default(), Notification.Name(SharedStateStore.notification), object: paths.stateURL.path) { $0.requestRefresh() }
         observe(DistributedNotificationCenter.default(), BackgroundPlayerPaths.commandNotification, object: paths.stateURL.path) { $0.checkStopRequest() }
-        timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+        timer = Timer(timeInterval: RuntimeRefreshPolicy.heartbeatInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.heartbeat() }
         }
+        timer?.tolerance = RuntimeRefreshPolicy.timerTolerance
         RunLoop.main.add(timer!, forMode: .common)
         await model.restore()
         guard phase == .starting else { return }
@@ -58,30 +63,35 @@ import WallpaperCore
             Task { @MainActor in
                 guard let self, self.phase == .starting || self.phase == .ready else { return }
                 action(self)
+                self.requestRefresh(force: false)
             }
         }))
     }
-    private func requestRefresh() {
+    private func requestRefresh(force: Bool = true) {
         guard phase == .starting || phase == .ready else { return }
         needsRefresh = true
+        forceReload = forceReload || force
         guard refreshTask == nil else { return }
         refreshTask = Task { [weak self] in
             guard let self else { return }
             defer { self.refreshTask = nil }
             while self.needsRefresh && !Task.isCancelled {
                 self.needsRefresh = false
-                await self.model.reloadSharedState()
-            }
-            if self.phase == .ready && Date().timeIntervalSince(self.lastPlaylistTick) >= 15 {
-                self.lastPlaylistTick = Date()
-                await self.model.tickPlaylist()
+                let force = self.forceReload
+                self.forceReload = false
+                if force { await self.model.reloadSharedState() }
+                else if self.refreshPolicy.sharedStateCheckDue(now: Date()) { await self.model.reloadSharedStateIfChanged() }
+                if self.phase == .ready && self.refreshPolicy.playlistCheckDue(now: Date(), enabled: self.model.state.playlist.enabled) {
+                    await self.model.tickPlaylist()
+                }
             }
             try? self.publishStatus()
         }
     }
-    private func heartbeat() {
-        if phase == .starting || phase == .ready { checkStopRequest(); requestRefresh() }
-        do { try publishStatus() } catch { model.errorMessage = error.localizedDescription }
+    func heartbeat() {
+        guard phase == .starting || phase == .ready else { return }
+        checkStopRequest()
+        requestRefresh(force: false)
     }
     private func checkStopRequest() {
         guard phase == .starting || phase == .ready else { return }
@@ -104,8 +114,10 @@ import WallpaperCore
                 projectID: session?.projectID ?? "", seconds: seconds.isFinite ? seconds : 0,
                 rate: session?.player.rate ?? 0, muted: session?.player.isMuted ?? true)
         }
-        try paths.writeStatus(PlayerStatus(sessionID: sessionID, pid: getpid(), build: build,
+        try statusWriter(PlayerStatus(sessionID: sessionID, pid: getpid(), build: build,
             parentAppPath: parentAppURL.path, phase: phase, displays: displays, error: model.errorMessage))
+        DistributedNotificationCenter.default().postNotificationName(BackgroundPlayerPaths.statusChangedNotification,
+            object: paths.stateURL.path, userInfo: nil, deliverImmediately: true)
     }
     public func prepareForTermination() -> [ExitWallpaper] {
         phase = .stopping
@@ -119,6 +131,7 @@ import WallpaperCore
     }
     public func finish() {
         phase = .stopped
+        model.onPlaybackStatusChange = nil
         timer?.invalidate(); timer = nil
         powerMonitor?.stop(); applicationMonitor?.stop(); refreshTask?.cancel()
         model.shutdown(); model.engine.stop()
