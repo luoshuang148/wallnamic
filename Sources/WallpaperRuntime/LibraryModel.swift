@@ -27,7 +27,7 @@ public enum LibraryMode { case standalone, management, player }
     private var pendingOperations = 0
     private var conversions: [Int: Task<WallpaperProject, Error>] = [:]
     private var persistenceBlocked = false
-    private var needsVariantRefresh = false
+    private var needsPlaybackRefresh = false
     @Published public private(set) var variantStatus: String?
     private var onBattery = false
     private var lowPowerMode = false
@@ -65,8 +65,8 @@ public enum LibraryMode { case standalone, management, player }
         }
         engine.variantStore.onReady = { [weak self] in
             guard let self, !self.terminating, self.state.performance.qualityMode == .energySaving else { return }
-            self.needsVariantRefresh = true
-            if !self.isBusy { self.needsVariantRefresh = false; self.reconcile() }
+            self.needsPlaybackRefresh = true
+            if !self.isBusy { self.needsPlaybackRefresh = false; self.reconcile() }
         }
         engine.setOcclusionPolicy(state.performance.pauseWhenOccluded)
         engine.setMuted(state.isMuted)
@@ -314,6 +314,7 @@ public enum LibraryMode { case standalone, management, player }
         guard mode != .management else { return }
         guard !terminating else { return }
         guard !applicationEffects.stopped else { engine.stop(); return }
+        if isBusy { needsPlaybackRefresh = true; return }
         var playable = state
         playable.isMuted = effectiveMuted
         playable.projects = state.projects.filter { readyProjects.contains($0.id) }
@@ -465,8 +466,8 @@ public enum LibraryMode { case standalone, management, player }
     private func endOperation() {
         pendingOperations -= 1
         isBusy = pendingOperations > 0
-        if !isBusy, needsVariantRefresh, !terminating {
-            needsVariantRefresh = false
+        if !isBusy, needsPlaybackRefresh, !terminating {
+            needsPlaybackRefresh = false
             reconcile()
         }
     }

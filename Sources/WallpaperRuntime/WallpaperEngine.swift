@@ -360,9 +360,14 @@ private final class DesktopWindow: NSWindow {
         let online = Set(displays.map(\.id))
         for id in Array(sessions.keys) where !online.contains(id) { sessions.removeValue(forKey: id)?.stop() }
         applyPlayback()
+        let scheduledRevision = revision
         refreshTask = Task { [weak self] in
             guard let self, !Task.isCancelled else { return }
             do {
+                // Avoid constructing native decoders for intents superseded within a burst.
+                // Current playback continues during this short preparation window.
+                try await Task.sleep(for: .milliseconds(80))
+                guard self.revision == scheduledRevision else { return }
                 let change = try await self.prepare(state: state, displays: displays, shouldPlay: self.playbackEnabled)
                 defer { self.discard(change) }
                 try self.commit(change, shouldPlay: self.playbackEnabled, isMuted: self.audioMuted)
