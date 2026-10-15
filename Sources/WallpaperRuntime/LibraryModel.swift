@@ -148,7 +148,7 @@ public enum LibraryMode { case standalone, management, player }
         return displays.compactMap { display in
             // An installed session is authoritative even if an apply is still preparing.
             if let session = engine.sessions[display.id] {
-                return ExitWallpaper(display:display,videoURL:URL(fileURLWithPath:session.videoPath),time:session.player.currentTime(),fit:session.fit)
+                return ExitWallpaper(display:display,videoURL:URL(fileURLWithPath:session.videoPath),time:session.playbackTime,fit:session.fit)
             }
             guard let assignment = state.assignment(for:display.id),
                   let project = state.projects.first(where:{ $0.id == assignment.projectID }),
@@ -305,6 +305,7 @@ public enum LibraryMode { case standalone, management, player }
         guard mode != .management else { return }
         guard !terminating else { return }
         if applicationEffects.stopped { engine.stop(); return }
+        engine.setSystemSuspended(!intent.suspensions.isDisjoint(with: ["sleep", "displaySleep", "inactiveSession", "lock"]))
         engine.setMuted(effectiveMuted)
         engine.setPlaying(intent.shouldPlay)
     }

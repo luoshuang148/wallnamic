@@ -85,6 +85,7 @@ import WallpaperCore
                     await self.model.tickPlaylist()
                 }
             }
+            self.model.engine.updateResidency()
             try? self.publishStatus()
         }
     }
@@ -109,7 +110,7 @@ import WallpaperCore
         var displays: [String: PlayerDisplayStatus] = [:]
         for display in model.displays {
             let session = model.engine.sessions[display.id]
-            let seconds = session?.player.currentTime().seconds ?? 0
+            let seconds = session?.playbackTime.seconds ?? 0
             displays[display.id] = PlayerDisplayStatus(message: model.playbackStatus(for: display.id),
                 projectID: session?.projectID ?? "", seconds: seconds.isFinite ? seconds : 0,
                 rate: session?.player.rate ?? 0, muted: session?.player.isMuted ?? true)

@@ -30,50 +30,65 @@ private final class DesktopWindow: NSWindow {
     public let projectID: String
     public let videoPath: String
     public private(set) var fit: FitMode
+    public private(set) var mediaReleased = false
+    public var playbackTime: CMTime { mediaReleased ? savedTime : player.currentTime() }
     let token = UUID()
+    var hiddenSince: Date?
+    private(set) var releasedForSystem = false
     private let videoLayer: AVPlayerLayer
+    private let stillLayer = CALayer()
     private var audioPolicy: LoopingAudioPolicy?
     private var observations: [NSKeyValueObservation] = []
     private var stopped = false
     private var failure: String?
     private var installed = false
+    private var desiredPlaying = false
+    private var desiredAudio = false
+    private var savedTime = CMTime.zero
+    private var residencyGeneration = 0
+    private var releaseTask: Task<Void, Never>?
+    private var restoreTask: Task<Void, Never>?
     private var occlusionObserver: NSObjectProtocol?
     private let onError: (WallpaperSession, String) -> Void
+    private let onOcclusionChange: (WallpaperSession) -> Void
     public var isOccluded: Bool { installed && !window.occlusionState.contains(.visible) }
 
     init(project: WallpaperProject, fit: FitMode, screen: NSScreen, onOcclusionChange: @escaping (WallpaperSession) -> Void, onError: @escaping (WallpaperSession, String) -> Void) {
-        self.onError = onError
-        projectID = project.id
-        videoPath = project.videoPath
-        self.fit = fit
+        self.onError = onError; self.onOcclusionChange = onOcclusionChange
+        projectID = project.id; videoPath = project.videoPath; self.fit = fit
         player = AVQueuePlayer()
         player.isMuted = true
         player.preventsDisplaySleepDuringVideoPlayback = false
         videoLayer = AVPlayerLayer(player: player)
-        videoLayer.videoGravity = fit == .fill ? .resizeAspectFill : .resizeAspect
         videoLayer.backgroundColor = NSColor.black.cgColor
         window = DesktopWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false, screen: screen)
         window.isReleasedWhenClosed = false
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
-        window.ignoresMouseEvents = true
-        window.hidesOnDeactivate = false
-        window.isOpaque = true
-        window.backgroundColor = .black
-        window.hasShadow = false
-        window.setFrame(screen.frame, display: true)
+        window.ignoresMouseEvents = true; window.hidesOnDeactivate = false
+        window.isOpaque = true; window.backgroundColor = .black; window.hasShadow = false
         let view = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
         view.wantsLayer = true
-        view.layer = videoLayer
+        view.layer = CALayer()
+        for layer in [stillLayer, videoLayer] {
+            layer.frame = view.bounds
+            layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+            view.layer?.addSublayer(layer)
+        }
         window.contentView = view
+        configureLayers(screen: screen, fit: fit)
         occlusionObserver = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.installed, !self.stopped else { return }
-                onOcclusionChange(self)
+                self.onOcclusionChange(self)
             }
         }
-        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: URL(fileURLWithPath: project.videoPath)))
-        audioPolicy = LoopingAudioPolicy(player: player)
+        installLoop()
+    }
+    private func installLoop() {
+        observations.removeAll()
+        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: URL(fileURLWithPath: videoPath)))
+        audioPolicy = LoopingAudioPolicy(player: player, enabled: desiredAudio)
         observations.append(player.observe(\.status, options: [.new]) { [weak self] player, _ in
             guard player.status == .failed else { return }
             let text = player.error?.localizedDescription ?? "视频播放失败。"
@@ -108,32 +123,112 @@ private final class DesktopWindow: NSWindow {
         throw WallpaperError.message("播放器准备超时，请重新尝试。")
     }
     func show() { installed = true; window.orderBack(nil) }
+    private func configureLayers(screen: NSScreen, fit: FitMode) {
+        videoLayer.contentsScale = screen.backingScaleFactor
+        stillLayer.contentsScale = screen.backingScaleFactor
+        videoLayer.videoGravity = fit == .fill ? .resizeAspectFill : .resizeAspect
+        stillLayer.contentsGravity = fit == .fill ? .resizeAspectFill : .resizeAspect
+    }
     func update(screen: NSScreen, fit: FitMode, playing: Bool) {
         self.fit = fit
         window.setFrame(screen.frame, display: true)
-        videoLayer.contentsScale = screen.backingScaleFactor
-        videoLayer.videoGravity = fit == .fill ? .resizeAspectFill : .resizeAspect
+        configureLayers(screen: screen, fit: fit)
         setPlaying(playing)
     }
-    func setAudioEnabled(_ enabled: Bool) { audioPolicy?.setEnabled(enabled) }
+    func setAudioEnabled(_ enabled: Bool) { desiredAudio = enabled; audioPolicy?.setEnabled(enabled) }
     func setPlaying(_ playing: Bool) {
-        guard !stopped else { return }
+        desiredPlaying = playing
+        guard !stopped, !mediaReleased || restoreTask != nil else { return }
         if playing { player.play() } else { player.pause() }
+    }
+    func cancelPendingRelease() {
+        guard releaseTask != nil else { return }
+        residencyGeneration += 1
+        releaseTask?.cancel(); releaseTask = nil
+    }
+    private func unloadMedia() {
+        observations.removeAll()
+        audioPolicy?.stop(); audioPolicy = nil
+        player.isMuted = true; player.pause()
+        looper?.disableLooping(); looper = nil
+        player.removeAllItems()
+        videoLayer.player = nil
+        videoLayer.opacity = 0
+        mediaReleased = true
+    }
+    func releaseMedia(preserveFrame: Bool) {
+        guard !stopped else { return }
+        if !preserveFrame {
+            cancelPendingRelease()
+            residencyGeneration += 1; restoreTask?.cancel(); restoreTask = nil
+            if !mediaReleased { savedTime = player.currentTime() }
+            releasedForSystem = true
+            window.orderOut(nil)
+            unloadMedia()
+            stillLayer.contents = nil
+            return
+        }
+        guard !mediaReleased, releaseTask == nil else { return }
+        residencyGeneration += 1
+        let generation = residencyGeneration
+        let time = player.currentTime()
+        releaseTask = Task { [weak self] in
+            guard let self, !self.stopped, !Task.isCancelled else { return }
+            defer { if self.residencyGeneration == generation { self.releaseTask = nil } }
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: self.videoPath)))
+            generator.appliesPreferredTrackTransform = true
+            if let screen = self.window.screen {
+                generator.maximumSize = CGSize(width: screen.frame.width * screen.backingScaleFactor, height: screen.frame.height * screen.backingScaleFactor)
+            }
+            do {
+                let image = try await withTaskCancellationHandler {
+                    try await generator.image(at: time).image
+                } onCancel: { generator.cancelAllCGImageGeneration() }
+                guard !Task.isCancelled, !self.stopped, self.residencyGeneration == generation, self.isOccluded else { return }
+                self.savedTime = time
+                CATransaction.begin(); CATransaction.setDisableActions(true)
+                self.stillLayer.contents = image
+                self.unloadMedia()
+                CATransaction.commit()
+                self.onOcclusionChange(self)
+            } catch { /* Retain the original frozen frame if snapshot preparation fails. */ }
+        }
+    }
+    func restoreMedia() {
+        cancelPendingRelease()
+        guard mediaReleased, restoreTask == nil, !stopped else { return }
+        residencyGeneration += 1
+        let generation = residencyGeneration
+        restoreTask = Task { [weak self] in
+            guard let self, !self.stopped, !Task.isCancelled else { return }
+            defer { if self.residencyGeneration == generation { self.restoreTask = nil } }
+            self.failure = nil
+            self.videoLayer.player = self.player
+            self.installLoop()
+            if self.desiredPlaying { self.player.play() }
+            do {
+                try await self.waitUntilReady()
+                _ = await self.player.seek(to: self.savedTime, toleranceBefore: .zero, toleranceAfter: .zero)
+                try Task.checkCancellation()
+                guard !Task.isCancelled, !self.stopped, self.residencyGeneration == generation else { return }
+                self.mediaReleased = false; self.releasedForSystem = false
+                CATransaction.begin(); CATransaction.setDisableActions(true)
+                self.videoLayer.opacity = 1; self.stillLayer.contents = nil
+                CATransaction.commit()
+                if self.installed { self.window.orderBack(nil) }
+                self.onOcclusionChange(self)
+            } catch is CancellationError { }
+            catch { self.handleFailure(error.localizedDescription) }
+        }
     }
     func stop() {
         guard !stopped else { return }
-        stopped = true
+        stopped = true; residencyGeneration += 1
+        releaseTask?.cancel(); releaseTask = nil; restoreTask?.cancel(); restoreTask = nil
         if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
         occlusionObserver = nil
-        observations.removeAll()
-        audioPolicy?.stop(); audioPolicy = nil
-        player.pause()
-        looper?.disableLooping()
-        looper = nil
-        player.removeAllItems()
-        videoLayer.player = nil
-        window.orderOut(nil)
-        window.close()
+        unloadMedia(); stillLayer.contents = nil
+        window.orderOut(nil); window.close()
     }
 }
 @MainActor public final class PreparedWallpaperChange {
@@ -158,11 +253,14 @@ private final class DesktopWindow: NSWindow {
     private var audioDisplayOrder: [String] = []
     private var refreshTask: Task<Void, Never>?
     private var terminating = false
+    private var systemSuspended = false
     public init() {}
 
     public func prepare(state: AppState, displays: [Display], shouldPlay: Bool) async throws -> PreparedWallpaperChange {
         guard !terminating else { throw CancellationError() }
         revision += 1
+        for session in pending.values { session.stop() }
+        pending.removeAll()
         let ticket = revision
         playbackEnabled = shouldPlay
         var candidates: [String: WallpaperSession] = [:]
@@ -185,8 +283,8 @@ private final class DesktopWindow: NSWindow {
                 candidates[display.id] = session
                 pending[session.token] = session
                 session.update(screen: display.screen, fit: assignment.fit, playing: playbackEnabled)
+                try await session.waitUntilReady()
             }
-            for session in candidates.values { try await session.waitUntilReady() }
             guard revision == ticket, !Task.isCancelled else { throw CancellationError() }
             return PreparedWallpaperChange(ticket: ticket, candidates: candidates, state: state, displays: displays)
         } catch {
@@ -241,6 +339,27 @@ private final class DesktopWindow: NSWindow {
             catch { self.onError?(error.localizedDescription) }
         }
     }
+    public func setSystemSuspended(_ suspended: Bool) {
+        guard !terminating, systemSuspended != suspended else { return }
+        systemSuspended = suspended
+        updateResidency()
+    }
+    public func updateResidency(now: Date = Date()) {
+        guard !terminating else { return }
+        for session in sessions.values {
+            let visible = !session.isOccluded || (session.releasedForSystem && !systemSuspended)
+            if visible { session.hiddenSince = nil }
+            else if session.hiddenSince == nil { session.hiddenSince = now }
+            let decision = PlaybackResidencyPolicy.decision(now: now, hiddenSince: session.hiddenSince,
+                occlusionPauseEnabled: pauseWhenOccluded, systemSuspended: systemSuspended,
+                manuallyPaused: !playbackEnabled, visible: visible, isResident: !session.mediaReleased)
+            switch decision {
+            case .release: session.releaseMedia(preserveFrame: !systemSuspended)
+            case .restore: session.restoreMedia()
+            case .retain: session.cancelPendingRelease()
+            }
+        }
+    }
     public func setPlaying(_ playing: Bool) {
         guard !terminating else { return }
         playbackEnabled = playing
@@ -264,6 +383,7 @@ private final class DesktopWindow: NSWindow {
             session.setPlaying(playbackEnabled && !(pauseWhenOccluded && session.isOccluded))
         }
         if let audible { sessions[audible]?.player.isMuted = false }
+        updateResidency()
         onPlaybackChange?()
     }
     public func stop() {
@@ -282,6 +402,6 @@ private final class DesktopWindow: NSWindow {
         refreshTask = nil
         for session in pending.values { session.stop() }
         pending.removeAll()
-        for session in sessions.values { session.player.isMuted = true; session.setPlaying(false) }
+        for session in sessions.values { session.cancelPendingRelease(); session.player.isMuted = true; session.setPlaying(false) }
     }
 }
