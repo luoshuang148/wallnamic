@@ -37,6 +37,7 @@ WallFlow is for Mac users who want video wallpapers, a personal wallpaper librar
 | Personal library | Search by name or ID, rename, favorite, group, and sort |
 | Automatic switching | Configure sequential or random playlists, day/night switching, and target displays |
 | Audio controls | Mute or play audio, with sound from only one playing display at a time |
+| Resource efficiency (source candidate) | Keep original quality by default; optionally cap playback at 1920 / 30fps and release inactive decoders |
 | Playback policies | Adjust playback for desktop occlusion, battery, Low Power Mode, lock, sleep, or specific apps |
 | Workshop imports | Browse the official Workshop in-app and download videos, use links/IDs, read subscriptions, or scan local downloads |
 | Format conversion | Use optional FFmpeg to convert unsupported videos while retaining originals |
