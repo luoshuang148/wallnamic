@@ -53,3 +53,6 @@ userdata/
 *.mobileprovision
 credentials*
 secrets*
+
+# Python profiling tools
+__pycache__/

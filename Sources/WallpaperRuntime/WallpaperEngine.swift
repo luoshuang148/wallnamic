@@ -32,6 +32,7 @@ private final class DesktopWindow: NSWindow {
     public private(set) var fit: FitMode
     let token = UUID()
     private let videoLayer: AVPlayerLayer
+    private var audioPolicy: LoopingAudioPolicy?
     private var observations: [NSKeyValueObservation] = []
     private var stopped = false
     private var failure: String?
@@ -72,6 +73,7 @@ private final class DesktopWindow: NSWindow {
             }
         }
         looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: URL(fileURLWithPath: project.videoPath)))
+        audioPolicy = LoopingAudioPolicy(player: player)
         observations.append(player.observe(\.status, options: [.new]) { [weak self] player, _ in
             guard player.status == .failed else { return }
             let text = player.error?.localizedDescription ?? "视频播放失败。"
@@ -113,6 +115,7 @@ private final class DesktopWindow: NSWindow {
         videoLayer.videoGravity = fit == .fill ? .resizeAspectFill : .resizeAspect
         setPlaying(playing)
     }
+    func setAudioEnabled(_ enabled: Bool) { audioPolicy?.setEnabled(enabled) }
     func setPlaying(_ playing: Bool) {
         guard !stopped else { return }
         if playing { player.play() } else { player.pause() }
@@ -123,6 +126,7 @@ private final class DesktopWindow: NSWindow {
         if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
         occlusionObserver = nil
         observations.removeAll()
+        audioPolicy?.stop(); audioPolicy = nil
         player.pause()
         looper?.disableLooping()
         looper = nil
@@ -255,6 +259,7 @@ private final class DesktopWindow: NSWindow {
             return !(pauseWhenOccluded && session.isOccluded)
         }
         for (id, session) in sessions where id != audible { session.player.isMuted = true }
+        for (id, session) in sessions { session.setAudioEnabled(id == audible) }
         for session in sessions.values {
             session.setPlaying(playbackEnabled && !(pauseWhenOccluded && session.isOccluded))
         }
