@@ -6,6 +6,7 @@ import WallpaperCore
 public enum LibraryMode { case standalone, management, player }
 
 @MainActor public final class LibraryModel: ObservableObject {
+    @Published public private(set) var artworkRevision = 0
     @Published public private(set) var state = AppState()
     @Published public private(set) var displays: [Display] = Display.current
     @Published public private(set) var isBusy = false
@@ -70,8 +71,10 @@ public enum LibraryMode { case standalone, management, player }
         engine.setOcclusionPolicy(state.performance.pauseWhenOccluded)
         engine.setMuted(state.isMuted)
     }
+    public func refreshArtwork() { artworkRevision &+= 1 }
     public func restore(revalidate: Bool = true) async {
         guard !terminating else { return }
+        refreshArtwork()
         let ticket = beginOperation()
         defer { endOperation() }
         var restored: Set<String> = []
@@ -132,6 +135,7 @@ public enum LibraryMode { case standalone, management, player }
             if let index = next.projects.firstIndex(where: { $0.id == project.id }) { next.projects[index] = project }
             else { next.projects.append(project) }
             try commit(next)
+            refreshArtwork()
             readyProjects.insert(project.id)
             mediaInfo[project.id] = info
             errorMessage = nil

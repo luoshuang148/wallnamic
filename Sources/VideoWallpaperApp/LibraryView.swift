@@ -96,7 +96,7 @@ struct LibraryView: View {
                         ForEach(visibleProjects) { item in
                             Button { selectedID = item.id; searchFocused = false } label: {
                                 HStack(spacing: 10) {
-                                    Thumbnail(path: item.previewPath).frame(width: 58, height: 40).clipShape(RoundedRectangle(cornerRadius: 6))
+                                    Thumbnail(path: item.previewPath, revision: model.artworkRevision).frame(width: 58, height: 40).clipShape(RoundedRectangle(cornerRadius: 6))
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(model.displayName(for:item)).font(.system(size: 12, weight: .medium)).lineLimit(2)
                                         if let groupName = model.state.organization.memberships[item.id].flatMap({ id in model.state.organization.groups.first { $0.id == id }?.name }) {
@@ -154,7 +154,7 @@ struct LibraryView: View {
     private func detail(_ project: WallpaperProject) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(spacing: 10) {
-                WallpaperPreview(project:project,active:!showsSettings && !showsWorkshop && renamingProject == nil)
+                WallpaperPreview(project:project,revision:model.artworkRevision,active:!showsSettings && !showsWorkshop && renamingProject == nil)
                 HStack {
                     Spacer()
                     if let info = model.mediaInfo[project.id] {
@@ -357,6 +357,7 @@ struct PerformanceView: View {
 
 private struct WallpaperPreview: View {
     let project: WallpaperProject
+    let revision: Int
     let active: Bool
     @StateObject private var preview = VideoPreviewModel()
     @State private var frameReady = false
@@ -384,7 +385,7 @@ private struct WallpaperPreview: View {
             .shadow(color:.black.opacity(0.1),radius:10,y:3)
             .frame(width:geometry.size.width,height:geometry.size.height)
         }.frame(height:248)
-        .task(id: project.previewPath) {
+        .task(id: (project.previewPath ?? "") + "\0" + String(revision)) {
             poster = nil
             guard let path = project.previewPath else { return }
             let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 1024)
@@ -400,6 +401,7 @@ private struct WallpaperPreview: View {
 
 private struct Thumbnail: View {
     let path: String?
+    var revision = 0
     var fit: FitMode = .fill
     @State private var image: CGImage?
     var body: some View {
@@ -416,7 +418,7 @@ private struct Thumbnail: View {
                 }
             }
         }
-        .task(id: path) {
+        .task(id: (path ?? "") + "\0" + String(revision)) {
             image = nil
             guard let path else { return }
             let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 256)

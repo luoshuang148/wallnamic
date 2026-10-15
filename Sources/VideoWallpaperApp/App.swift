@@ -188,6 +188,7 @@ import WallpaperRuntime
     }
     private func quiesce() { workshop?.shutdown(); model?.shutdown() }
     @objc private func showLibrary() {
+        model.refreshArtwork()
         backgroundLogin = false
         if statusItem == nil { setupStatusItem() }
         if !managementRestored {

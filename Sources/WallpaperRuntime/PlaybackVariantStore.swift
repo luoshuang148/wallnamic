@@ -1,6 +1,26 @@
 import Foundation
 import CryptoKit
+import Darwin
 import WallpaperCore
+
+/// Kernel-owned lease is released even if an exporter crashes. All stores sharing a
+/// directory coordinate cleanup so another process's live export is never removed.
+private final class VariantGenerationLease {
+    private let descriptor: Int32
+    private init(_ descriptor: Int32) { self.descriptor = descriptor }
+    static func acquire(at root: URL) throws -> VariantGenerationLease? {
+        let file = root.appendingPathComponent(".variant-generation.lock")
+        let fd = open(file.path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            let code = errno; close(fd)
+            if code == EWOULDBLOCK { return nil }
+            throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+        }
+        return VariantGenerationLease(fd)
+    }
+    deinit { flock(descriptor, LOCK_UN); close(descriptor) }
+}
 
 /// Bounded on-disk variants. A cache miss always returns the original immediately.
 @MainActor public final class PlaybackVariantStore {
@@ -70,7 +90,19 @@ import WallpaperCore
         active?.task.cancel(); refreshStatus()
     }
     public func pin(playbackURLs: [URL]) { pinned = Set(playbackURLs.map { $0.resolvingSymlinksInPath().standardizedFileURL.path }) }
-    public func trimCache() { _ = trim(reserving: 0) }
+    public func trimCache() {
+        guard FileManager.default.fileExists(atPath: cacheRoot.path),
+              let lease = try? VariantGenerationLease.acquire(at: cacheRoot) else { return }
+        withExtendedLifetime(lease) { removeOrphanedStaging(); _ = trim(reserving: 0) }
+    }
+    private func removeOrphanedStaging() {
+        let files = (try? FileManager.default.contentsOfDirectory(at: cacheRoot, includingPropertiesForKeys: [.isRegularFileKey])) ?? []
+        for file in files where file.lastPathComponent.hasPrefix(".pending-") && file.pathExtension == "mp4" {
+            if (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
     private func trim(reserving: Int64) -> Bool {
         let fm = FileManager.default
         let files = ((try? fm.contentsOfDirectory(at: cacheRoot, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey])) ?? [])
@@ -103,6 +135,15 @@ import WallpaperCore
                 do {
                     try Task.checkCancellation()
                     try FileManager.default.createDirectory(at: self.cacheRoot, withIntermediateDirectories: true)
+                    var lease: VariantGenerationLease?
+                    while lease == nil {
+                        try Task.checkCancellation()
+                        lease = try VariantGenerationLease.acquire(at: self.cacheRoot)
+                        if lease == nil { try await Task.sleep(for: .seconds(1)) }
+                    }
+                    defer { withExtendedLifetime(lease) {} }
+                    self.removeOrphanedStaging()
+                    if self.exists(job.key) { self.onReady?(); return }
                     try await self.encoder(job.source, staging)
                     try Task.checkCancellation()
                     _ = try await MediaValidator.validate(url: staging)

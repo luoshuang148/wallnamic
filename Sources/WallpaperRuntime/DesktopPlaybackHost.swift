@@ -10,6 +10,7 @@ import WallpaperCore
     public private(set) var phase: PlayerPhase = .starting
     private let parentAppURL: URL
     private let build: String
+    private let reloadSharedState: () async -> Void
     private let statusWriter: (PlayerStatus) throws -> Void
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var powerMonitor: PowerMonitor?
@@ -17,16 +18,19 @@ import WallpaperCore
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
     private var needsRefresh = false
+    private var needsPublish = false
     private var refreshPolicy = RuntimeRefreshPolicy()
     private var forceReload = false
     private var stopScheduled = false
     public var onStopRequested: (() -> Void)?
 
-    public init(paths: BackgroundPlayerPaths, parentAppURL: URL, build: String, sessionID: UUID, statusWriter: ((PlayerStatus) throws -> Void)? = nil) {
+    public init(paths: BackgroundPlayerPaths, parentAppURL: URL, build: String, sessionID: UUID, statusWriter: ((PlayerStatus) throws -> Void)? = nil, reloadSharedState: (() async -> Void)? = nil) {
         self.statusWriter = statusWriter ?? { try paths.writeStatus($0) }
         self.sessionID = sessionID
         self.paths = paths; self.parentAppURL = parentAppURL; self.build = build
-        model = LibraryModel(storeURL: paths.stateURL, mode: .player)
+        let library = LibraryModel(storeURL: paths.stateURL, mode: .player)
+        model = library
+        self.reloadSharedState = reloadSharedState ?? { await library.reloadSharedState() }
     }
     public func start() async throws {
         try publishStatus()
@@ -67,9 +71,10 @@ import WallpaperCore
             }
         }))
     }
-    private func requestRefresh(force: Bool = true) {
+    func requestRefresh(force: Bool = true, publishChanges: Bool = true) {
         guard phase == .starting || phase == .ready else { return }
         needsRefresh = true
+        needsPublish = needsPublish || publishChanges
         forceReload = forceReload || force
         guard refreshTask == nil else { return }
         refreshTask = Task { [weak self] in
@@ -79,20 +84,24 @@ import WallpaperCore
                 self.needsRefresh = false
                 let force = self.forceReload
                 self.forceReload = false
-                if force { await self.model.reloadSharedState() }
+                if force { await self.reloadSharedState() }
                 else if self.refreshPolicy.sharedStateCheckDue(now: Date()) { await self.model.reloadSharedStateIfChanged() }
                 if self.phase == .ready && self.refreshPolicy.playlistCheckDue(now: Date(), enabled: self.model.state.playlist.enabled) {
                     await self.model.tickPlaylist()
                 }
             }
             self.model.engine.updateResidency()
-            try? self.publishStatus()
+            if self.needsPublish {
+                self.needsPublish = false
+                try? self.publishStatus()
+            }
         }
     }
     func heartbeat() {
         guard phase == .starting || phase == .ready else { return }
         checkStopRequest()
-        requestRefresh(force: false)
+        try? publishStatus()
+        requestRefresh(force: false, publishChanges: false)
     }
     private func checkStopRequest() {
         guard phase == .starting || phase == .ready else { return }

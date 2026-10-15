@@ -90,7 +90,7 @@ private final class DesktopWindow: NSWindow {
     private func installLoop() {
         observations.removeAll()
         looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: playbackURL))
-        audioPolicy = LoopingAudioPolicy(player: player, enabled: desiredAudio)
+        audioPolicy = LoopingAudioPolicy(player: player, enabled: desiredAudio && !mediaReleased)
         observations.append(player.observe(\.status, options: [.new]) { [weak self] player, _ in
             guard player.status == .failed else { return }
             let text = player.error?.localizedDescription ?? "视频播放失败。"
@@ -137,7 +137,11 @@ private final class DesktopWindow: NSWindow {
         configureLayers(screen: screen, fit: fit)
         setPlaying(playing)
     }
-    func setAudioEnabled(_ enabled: Bool) { desiredAudio = enabled; audioPolicy?.setEnabled(enabled) }
+    func setAudioEnabled(_ enabled: Bool) {
+        desiredAudio = enabled
+        audioPolicy?.setEnabled(enabled && !mediaReleased)
+        if mediaReleased { player.isMuted = true }
+    }
     func setPlaying(_ playing: Bool) {
         desiredPlaying = playing
         guard !stopped, !mediaReleased || restoreTask != nil else { return }
@@ -147,6 +151,12 @@ private final class DesktopWindow: NSWindow {
         guard releaseTask != nil else { return }
         residencyGeneration += 1
         releaseTask?.cancel(); releaseTask = nil
+    }
+    func cancelRestoration() {
+        guard restoreTask != nil else { return }
+        residencyGeneration += 1
+        restoreTask?.cancel(); restoreTask = nil
+        if mediaReleased { unloadMedia() }
     }
     private func unloadMedia() {
         observations.removeAll()
@@ -205,6 +215,7 @@ private final class DesktopWindow: NSWindow {
             guard let self, !self.stopped, !Task.isCancelled else { return }
             defer { if self.residencyGeneration == generation { self.restoreTask = nil } }
             self.failure = nil
+            self.player.isMuted = true
             self.videoLayer.player = self.player
             self.installLoop()
             if self.desiredPlaying { self.player.play() }
@@ -362,6 +373,7 @@ private final class DesktopWindow: NSWindow {
     public func setSystemSuspended(_ suspended: Bool) {
         guard !terminating, systemSuspended != suspended else { return }
         systemSuspended = suspended
+        if suspended { for session in sessions.values { session.releaseMedia(preserveFrame: false) } }
         updateResidency()
     }
     public func updateResidency(now: Date = Date()) {
@@ -402,7 +414,7 @@ private final class DesktopWindow: NSWindow {
         for session in sessions.values {
             session.setPlaying(playbackEnabled && !(pauseWhenOccluded && session.isOccluded))
         }
-        if let audible { sessions[audible]?.player.isMuted = false }
+        if let audible, let session = sessions[audible], !session.mediaReleased { session.player.isMuted = false }
         updateResidency()
         onPlaybackChange?()
     }
@@ -425,6 +437,6 @@ private final class DesktopWindow: NSWindow {
         refreshTask = nil
         for session in pending.values { session.stop() }
         pending.removeAll()
-        for session in sessions.values { session.cancelPendingRelease(); session.player.isMuted = true; session.setPlaying(false) }
+        for session in sessions.values { session.cancelPendingRelease(); session.cancelRestoration(); session.player.isMuted = true; session.setPlaying(false) }
     }
 }
