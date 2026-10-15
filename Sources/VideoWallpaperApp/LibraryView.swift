@@ -328,6 +328,14 @@ struct PerformanceView: View {
                 Text("性能与电源").font(.title2.weight(.semibold))
             }
             VStack(alignment: .leading, spacing: 20) {
+                Picker("画质模式", selection: Binding(get: { model.state.performance.qualityMode }, set: { value in
+                    var settings = model.state.performance; settings.qualityMode = value; model.setPerformance(settings)
+                })) {
+                    Text("原画质").tag(PlaybackQualityMode.original)
+                    Text("省电（最高 1920 / 30fps）").tag(PlaybackQualityMode.energySaving)
+                }
+                if let message = model.variantStatus { Text(message).font(.caption).foregroundStyle(.secondary) }
+                Divider()
                 option("桌面完全被遮挡时暂停", binding: setting(\.pauseWhenOccluded))
                 Divider()
                 option("电池供电时暂停", binding: setting(\.pauseOnBattery))

@@ -16,7 +16,7 @@ public enum LibraryMode { case standalone, management, player }
     private var runningApplications: Set<String> = []
     private var frontmostApplication: String?
     private var playlistClock = PlaylistClock()
-    public let engine = WallpaperEngine()
+    public let engine: WallpaperEngine
     public let storeURL: URL
     public let mode: LibraryMode
     @Published private var externalPlaybackStatus: [String: String] = [:]
@@ -26,6 +26,8 @@ public enum LibraryMode { case standalone, management, player }
     private var pendingOperations = 0
     private var conversions: [Int: Task<WallpaperProject, Error>] = [:]
     private var persistenceBlocked = false
+    private var needsVariantRefresh = false
+    @Published public private(set) var variantStatus: String?
     private var onBattery = false
     private var lowPowerMode = false
     private var terminating = false
@@ -34,6 +36,7 @@ public enum LibraryMode { case standalone, management, player }
     public var onPlaybackStatusChange: (() -> Void)?
 
     public init(storeURL: URL, mode: LibraryMode = .standalone) {
+        self.engine = WallpaperEngine(variantStore: PlaybackVariantStore(cacheRoot: storeURL.deletingLastPathComponent().appendingPathComponent("PlaybackVariants", isDirectory: true)))
         self.storeURL = storeURL
         self.mode = mode
         do { state = try StateStore.load(from: storeURL) }
@@ -53,6 +56,16 @@ public enum LibraryMode { case standalone, management, player }
         engine.onPlaybackChange = { [weak self] in
             self?.objectWillChange.send()
             self?.onPlaybackStatusChange?()
+        }
+        engine.variantStore.onChange = { [weak self] in
+            guard let self else { return }
+            self.setVariantStatus(self.engine.variantStore.statusMessage)
+            self.onPlaybackStatusChange?()
+        }
+        engine.variantStore.onReady = { [weak self] in
+            guard let self, !self.terminating, self.state.performance.qualityMode == .energySaving else { return }
+            self.needsVariantRefresh = true
+            if !self.isBusy { self.needsVariantRefresh = false; self.reconcile() }
         }
         engine.setOcclusionPolicy(state.performance.pauseWhenOccluded)
         engine.setMuted(state.isMuted)
@@ -257,12 +270,14 @@ public enum LibraryMode { case standalone, management, player }
     public var shouldPlay: Bool { intent.shouldPlay }
     public var isSystemSuspended: Bool { !intent.suspensions.isEmpty }
     public func setPerformance(_ settings: PerformanceSettings) {
+        let oldQuality = state.performance.qualityMode
         var next = state
         next.performance = settings
         do {
             try commit(next)
             engine.setOcclusionPolicy(settings.pauseWhenOccluded)
             updatePowerState(onBattery: onBattery, lowPowerMode: lowPowerMode)
+            if oldQuality != state.performance.qualityMode { reconcile() }
         } catch { errorMessage = error.localizedDescription }
     }
     public func updatePowerState(onBattery: Bool, lowPowerMode: Bool) {
@@ -301,10 +316,14 @@ public enum LibraryMode { case standalone, management, player }
         engine.reconcile(state: playable, displays: displays, shouldPlay: intent.shouldPlay)
     }
     private var effectiveMuted: Bool { state.isMuted || applicationEffects.muted }
+    public func setVariantStatus(_ message: String?) {
+        if variantStatus != message { variantStatus = message }
+    }
     private func applyRuntimePolicy() {
         guard mode != .management else { return }
         guard !terminating else { return }
         if applicationEffects.stopped { engine.stop(); return }
+        engine.variantStore.setGenerationAllowed(!onBattery && !lowPowerMode && !isSystemSuspended)
         engine.setSystemSuspended(!intent.suspensions.isDisjoint(with: ["sleep", "displaySleep", "inactiveSession", "lock"]))
         engine.setMuted(effectiveMuted)
         engine.setPlaying(intent.shouldPlay)
@@ -427,7 +446,7 @@ public enum LibraryMode { case standalone, management, player }
             updatePowerState(onBattery: onBattery, lowPowerMode: lowPowerMode)
             refreshApplicationEffects()
             let assignmentChanged = old.assignments != fresh.assignments || old.defaultAssignment != fresh.defaultAssignment
-            if old.projects != fresh.projects || (mode != .management && assignmentChanged) {
+            if old.projects != fresh.projects || (mode != .management && (assignmentChanged || old.performance.qualityMode != fresh.performance.qualityMode)) {
                 await restore(revalidate: false)
             } else { applyRuntimePolicy() }
         } catch { stateFileMonitor.invalidate(); errorMessage = error.localizedDescription }
@@ -442,5 +461,9 @@ public enum LibraryMode { case standalone, management, player }
     private func endOperation() {
         pendingOperations -= 1
         isBusy = pendingOperations > 0
+        if !isBusy, needsVariantRefresh, !terminating {
+            needsVariantRefresh = false
+            reconcile()
+        }
     }
 }

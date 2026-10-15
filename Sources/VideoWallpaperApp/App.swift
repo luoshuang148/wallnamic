@@ -176,6 +176,7 @@ import WallpaperRuntime
                     if let status = self.player.status {
                         self.connectedSession = status.sessionID
                         self.model.setExternalPlaybackStatus(status.displays.mapValues(\.message))
+                        self.model.setVariantStatus(status.resourceStatus)
                         if let error = status.error, error != self.lastPlayerError { self.model.errorMessage = error }
                         self.lastPlayerError = status.error
                     } else {

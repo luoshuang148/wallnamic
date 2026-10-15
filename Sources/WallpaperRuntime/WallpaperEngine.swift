@@ -29,6 +29,7 @@ private final class DesktopWindow: NSWindow {
     public private(set) var looper: AVPlayerLooper?
     public let projectID: String
     public let videoPath: String
+    public let playbackURL: URL
     public private(set) var fit: FitMode
     public private(set) var mediaReleased = false
     public var playbackTime: CMTime { mediaReleased ? savedTime : player.currentTime() }
@@ -53,9 +54,10 @@ private final class DesktopWindow: NSWindow {
     private let onOcclusionChange: (WallpaperSession) -> Void
     public var isOccluded: Bool { installed && !window.occlusionState.contains(.visible) }
 
-    init(project: WallpaperProject, fit: FitMode, screen: NSScreen, onOcclusionChange: @escaping (WallpaperSession) -> Void, onError: @escaping (WallpaperSession, String) -> Void) {
+    init(project: WallpaperProject, fit: FitMode, screen: NSScreen, playbackURL: URL? = nil, onOcclusionChange: @escaping (WallpaperSession) -> Void, onError: @escaping (WallpaperSession, String) -> Void) {
         self.onError = onError; self.onOcclusionChange = onOcclusionChange
         projectID = project.id; videoPath = project.videoPath; self.fit = fit
+        self.playbackURL = playbackURL ?? URL(fileURLWithPath: project.videoPath)
         player = AVQueuePlayer()
         player.isMuted = true
         player.preventsDisplaySleepDuringVideoPlayback = false
@@ -87,7 +89,7 @@ private final class DesktopWindow: NSWindow {
     }
     private func installLoop() {
         observations.removeAll()
-        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: URL(fileURLWithPath: videoPath)))
+        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: playbackURL))
         audioPolicy = LoopingAudioPolicy(player: player, enabled: desiredAudio)
         observations.append(player.observe(\.status, options: [.new]) { [weak self] player, _ in
             guard player.status == .failed else { return }
@@ -175,7 +177,7 @@ private final class DesktopWindow: NSWindow {
         releaseTask = Task { [weak self] in
             guard let self, !self.stopped, !Task.isCancelled else { return }
             defer { if self.residencyGeneration == generation { self.releaseTask = nil } }
-            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: self.videoPath)))
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: self.playbackURL))
             generator.appliesPreferredTrackTransform = true
             if let screen = self.window.screen {
                 generator.maximumSize = CGSize(width: screen.frame.width * screen.backingScaleFactor, height: screen.frame.height * screen.backingScaleFactor)
@@ -243,6 +245,7 @@ private final class DesktopWindow: NSWindow {
 }
 @MainActor public final class WallpaperEngine {
     public private(set) var sessions: [String: WallpaperSession] = [:]
+    public let variantStore: PlaybackVariantStore
     public var onError: ((String) -> Void)?
     public var onPlaybackChange: (() -> Void)?
     private var pending: [UUID: WallpaperSession] = [:]
@@ -254,13 +257,23 @@ private final class DesktopWindow: NSWindow {
     private var refreshTask: Task<Void, Never>?
     private var terminating = false
     private var systemSuspended = false
-    public init() {}
+    public init(variantStore: PlaybackVariantStore? = nil) { self.variantStore = variantStore ?? PlaybackVariantStore() }
+    private func updateVariantPins() {
+        variantStore.pin(playbackURLs: Array(sessions.values).map(\.playbackURL) + Array(pending.values).map(\.playbackURL))
+    }
 
     public func prepare(state: AppState, displays: [Display], shouldPlay: Bool) async throws -> PreparedWallpaperChange {
         guard !terminating else { throw CancellationError() }
         revision += 1
         for session in pending.values { session.stop() }
         pending.removeAll()
+        updateVariantPins()
+        let sources = displays.compactMap { display -> URL? in
+            guard let assignment = state.assignment(for: display.id),
+                  let project = state.projects.first(where: { $0.id == assignment.projectID }) else { return nil }
+            return URL(fileURLWithPath: project.videoPath)
+        }
+        variantStore.updateDemand(sourceURLs: sources, mode: state.performance.qualityMode)
         let ticket = revision
         playbackEnabled = shouldPlay
         var candidates: [String: WallpaperSession] = [:]
@@ -268,10 +281,11 @@ private final class DesktopWindow: NSWindow {
             for display in displays {
                 guard let assignment = state.assignment(for: display.id),
                       let project = state.projects.first(where: { $0.id == assignment.projectID }) else { continue }
-                if let existing = sessions[display.id], existing.projectID == project.id, existing.videoPath == project.videoPath { continue }
+                let resource = try await variantStore.playbackURL(for: URL(fileURLWithPath: project.videoPath), mode: state.performance.qualityMode)
+                if let existing = sessions[display.id], existing.projectID == project.id, existing.videoPath == project.videoPath, existing.playbackURL == resource { continue }
                 let fresh = try WallpaperProject.load(folder: URL(fileURLWithPath: project.folderPath))
                 guard fresh.videoPath == project.videoPath else { throw WallpaperError.message("视频文件已改变，请重新导入。") }
-                let session = WallpaperSession(project: fresh.identifyingSourceFolder(project.sourceFolderPath), fit: assignment.fit, screen: display.screen, onOcclusionChange: { [weak self] changed in
+                let session = WallpaperSession(project: fresh.identifyingSourceFolder(project.sourceFolderPath), fit: assignment.fit, screen: display.screen, playbackURL: resource, onOcclusionChange: { [weak self] changed in
                     guard let self, self.sessions[display.id] === changed else { return }
                     self.applyPlayback()
                 }) { [weak self] failed, message in
@@ -282,8 +296,12 @@ private final class DesktopWindow: NSWindow {
                 }
                 candidates[display.id] = session
                 pending[session.token] = session
+                updateVariantPins()
                 session.update(screen: display.screen, fit: assignment.fit, playing: playbackEnabled)
                 try await session.waitUntilReady()
+                if let existing = sessions[display.id], existing.projectID == project.id, existing.videoPath == project.videoPath {
+                    _ = await session.player.seek(to: existing.playbackTime, toleranceBefore: .zero, toleranceAfter: .zero)
+                }
             }
             guard revision == ticket, !Task.isCancelled else { throw CancellationError() }
             return PreparedWallpaperChange(ticket: ticket, candidates: candidates, state: state, displays: displays)
@@ -313,12 +331,14 @@ private final class DesktopWindow: NSWindow {
             } else { sessions[display.id]?.update(screen: display.screen, fit: assignment.fit, playing: shouldPlay) }
         }
         change.finished = true
+        updateVariantPins(); variantStore.trimCache()
         applyPlayback()
     }
     public func discard(_ change: PreparedWallpaperChange) {
         guard !change.finished else { return }
         change.finished = true
         for session in change.candidates.values { pending.removeValue(forKey: session.token); session.stop() }
+        updateVariantPins()
     }
     public func reconcile(state: AppState, displays: [Display], shouldPlay: Bool) {
         guard !terminating else { return }
@@ -387,6 +407,7 @@ private final class DesktopWindow: NSWindow {
         onPlaybackChange?()
     }
     public func stop() {
+        variantStore.cancelGeneration()
         revision += 1
         refreshTask?.cancel()
         refreshTask = nil
@@ -394,8 +415,10 @@ private final class DesktopWindow: NSWindow {
         for session in pending.values { session.stop() }
         sessions.removeAll()
         pending.removeAll()
+        updateVariantPins()
     }
     public func freezeForTermination() {
+        variantStore.cancelGeneration()
         terminating = true
         revision += 1
         refreshTask?.cancel()

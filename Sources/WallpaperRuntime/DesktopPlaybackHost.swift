@@ -116,7 +116,7 @@ import WallpaperCore
                 rate: session?.player.rate ?? 0, muted: session?.player.isMuted ?? true)
         }
         try statusWriter(PlayerStatus(sessionID: sessionID, pid: getpid(), build: build,
-            parentAppPath: parentAppURL.path, phase: phase, displays: displays, error: model.errorMessage))
+            parentAppPath: parentAppURL.path, phase: phase, displays: displays, error: model.errorMessage, resourceStatus: model.variantStatus))
         DistributedNotificationCenter.default().postNotificationName(BackgroundPlayerPaths.statusChangedNotification,
             object: paths.stateURL.path, userInfo: nil, deliverImmediately: true)
     }
