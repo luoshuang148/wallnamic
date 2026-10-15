@@ -353,15 +353,14 @@ private struct WallpaperPreview: View {
     @StateObject private var preview = VideoPreviewModel()
     @State private var frameReady = false
     @State private var surfaceVisible = false
+    @State private var poster: CGImage?
     var body: some View {
-        let image = project.previewPath.flatMap { NSImage(contentsOfFile:$0) }
-        let size = image?.size ?? NSSize(width:16,height:9)
-        let posterRatio = size.width > 0 && size.height > 0 ? size.width/size.height : 16.0/9.0
+        let posterRatio = poster.map { Double($0.width) / Double($0.height) } ?? 16.0/9.0
         let ratio = frameReady ? (preview.aspectRatio ?? posterRatio) : posterRatio
         GeometryReader { geometry in
             let height = min(248,geometry.size.width/ratio)
             ZStack {
-                if let image { Image(nsImage:image).resizable().scaledToFit() }
+                if let poster { Image(decorative: poster, scale: 1).resizable().scaledToFit() }
                 else { Thumbnail(path:nil) }
                 VideoPreviewSurface(player:preview.player,onVisibility:{ visible in
                     surfaceVisible = visible
@@ -377,6 +376,13 @@ private struct WallpaperPreview: View {
             .shadow(color:.black.opacity(0.1),radius:10,y:3)
             .frame(width:geometry.size.width,height:geometry.size.height)
         }.frame(height:248)
+        .task(id: project.previewPath) {
+            poster = nil
+            guard let path = project.previewPath else { return }
+            let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 1024)
+            guard !Task.isCancelled else { return }
+            poster = result
+        }
         .onAppear { preview.setProject(project) }
         .onChange(of:project.id + "\n" + project.videoPath) { _,_ in frameReady = false; preview.setProject(project) }
         .onChange(of:active) { _,value in preview.setVisible(surfaceVisible && value) }
@@ -387,10 +393,11 @@ private struct WallpaperPreview: View {
 private struct Thumbnail: View {
     let path: String?
     var fit: FitMode = .fill
+    @State private var image: CGImage?
     var body: some View {
         GeometryReader { geometry in
-            if let path, let image = NSImage(contentsOfFile: path) {
-                Image(nsImage: image).resizable()
+            if let image {
+                Image(decorative: image, scale: 1).resizable()
                     .aspectRatio(contentMode: fit == .fit ? .fit : .fill)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .background(.black).clipped()
@@ -400,6 +407,13 @@ private struct Thumbnail: View {
                     Image(systemName: "film").font(.title).foregroundStyle(.secondary)
                 }
             }
+        }
+        .task(id: path) {
+            image = nil
+            guard let path else { return }
+            let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 256)
+            guard !Task.isCancelled else { return }
+            image = result
         }
     }
 }
