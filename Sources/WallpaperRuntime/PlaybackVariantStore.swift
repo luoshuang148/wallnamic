@@ -153,7 +153,7 @@ private final class VariantGenerationLease {
                     let size = Int64(try staging.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
                     // Staging files are not cached entries and must not evict themselves.
                     guard size <= self.byteLimit, self.trim(reserving: size) else {
-                        throw WallpaperError.message("省电缓存空间不足，继续使用原画质。")
+                        throw WallpaperError.message(L("error.variant.cacheFull"))
                     }
                     try FileManager.default.moveItem(at: staging, to: self.url(for: job.key))
                     self.onReady?()
@@ -174,10 +174,10 @@ private final class VariantGenerationLease {
     private func refreshStatus() {
         let message: String?
         if mode == .original || demand.isEmpty { message = nil }
-        else if demand.values.allSatisfy({ exists($0) }) { message = "省电视频已就绪" }
-        else if let error = demand.values.compactMap({ failed[$0] }).first { message = "部分视频继续使用原画质：" + error }
-        else if !generationAllowed { message = "当前继续使用原画质；接通电源后准备省电视频" }
-        else { message = "正在准备省电视频，未就绪屏幕继续使用原画质" }
+        else if demand.values.allSatisfy({ exists($0) }) { message = L("variant.ready") }
+        else if let error = demand.values.compactMap({ failed[$0] }).first { message = String(format: L("variant.partialFailed"), error) }
+        else if !generationAllowed { message = L("variant.waitingForPower") }
+        else { message = L("variant.preparing") }
         guard message != statusMessage else { return }
         statusMessage = message; onChange?()
     }

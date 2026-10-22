@@ -7,7 +7,7 @@ public enum PlaybackVariantEncoder {
         let bounds = CGRect(origin: .zero, size: naturalSize).applying(transform).standardized
         guard bounds.width.isFinite, bounds.height.isFinite, bounds.width > 0, bounds.height > 0,
               nominalFrameRate.isFinite, nominalFrameRate > 0 else {
-            throw WallpaperError.message("无法确定视频尺寸或帧率，继续使用原画质。")
+            throw WallpaperError.message(L("error.variant.cannotDetermineSizeOrFrameRate"))
         }
         let scale = min(1, 1920 / max(bounds.width, bounds.height))
         // Integral even output dimensions; center the aspect-preserving image.
@@ -25,11 +25,11 @@ public enum PlaybackVariantEncoder {
     public static func encode(source: URL, destination: URL) async throws {
         let asset = AVURLAsset(url: source)
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
-            throw WallpaperError.message("视频没有画面轨道。")
+            throw WallpaperError.message(L("error.variant.noVideoTrack"))
         }
         // HighestQuality may map HDR to SDR. Never silently alter HDR appearance.
         guard !track.hasMediaCharacteristic(.containsHDRVideo) else {
-            throw WallpaperError.message("此 HDR 视频继续使用原画质，以保留原始色彩。")
+            throw WallpaperError.message(L("error.variant.hdrKeepsOriginal"))
         }
         let size = try await track.load(.naturalSize), transform = try await track.load(.preferredTransform)
         let fps = try await track.load(.nominalFrameRate)
@@ -37,7 +37,7 @@ public enum PlaybackVariantEncoder {
         let geometry = try outputGeometry(naturalSize: size, transform: transform, nominalFrameRate: fps)
         try Task.checkCancellation()
         guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
-            throw WallpaperError.message("系统暂时无法创建省电视频，继续使用原画质。")
+            throw WallpaperError.message(L("error.variant.cannotCreate"))
         }
         let composition = AVMutableVideoComposition()
         composition.renderSize = geometry.size; composition.frameDuration = geometry.frameDuration
@@ -61,7 +61,7 @@ public enum PlaybackVariantEncoder {
                     switch export.status {
                     case .completed: continuation.resume()
                     case .cancelled: continuation.resume(throwing: CancellationError())
-                    default: continuation.resume(throwing: export.error ?? WallpaperError.message("省电视频准备失败。"))
+                    default: continuation.resume(throwing: export.error ?? WallpaperError.message(L("error.variant.failed")))
                     }
                 }
             }
