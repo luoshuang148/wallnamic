@@ -301,6 +301,7 @@ public enum LibraryMode { case standalone, management, player }
             try commit(next)
             engine.setOcclusionPolicy(settings.pauseWhenOccluded)
             updatePowerState(onBattery: onBattery, lowPowerMode: lowPowerMode)
+            refreshApplicationEffects()
             if oldQuality != state.performance.qualityMode { reconcile() }
         } catch { errorMessage = error.localizedDescription }
     }
@@ -323,9 +324,10 @@ public enum LibraryMode { case standalone, management, player }
         if applicationEffects.stopped { return L("library.status.applicationRuleResourcesFreed") }
         if applicationEffects.paused { return L("library.status.applicationRulePaused") }
         if state.manuallyPaused { return L("library.status.manuallyPaused") }
-        let reasons = state.performance.pauseReasons(onBattery: onBattery, lowPowerMode: lowPowerMode, occluded: engine.sessions[displayID]?.isOccluded ?? false)
+        let reasons = state.performance.pauseReasons(onBattery: onBattery, lowPowerMode: lowPowerMode, occluded: engine.sessions[displayID]?.isOccluded ?? false, appInFront: shouldPauseForFrontmostApp())
         if reasons.contains(.battery) { return L("library.status.onBatteryPaused") }
         if reasons.contains(.lowPowerMode) { return L("library.status.lowPowerModePaused") }
+        if reasons.contains(.appInFront) { return L("library.status.appInFrontPaused") }
         if isSystemSuspended { return L("library.status.pausedBySystem") }
         if reasons.contains(.occluded) { return L("library.status.desktopCoveredPaused") }
         return engine.sessions[displayID] == nil ? L("library.status.waitingForPlayback") : (applicationEffects.muted ? L("library.status.playingMutedByRule") : L("library.status.playing"))
@@ -394,12 +396,35 @@ public enum LibraryMode { case standalone, management, player }
     }
     private func refreshApplicationEffects() {
         let next = ApplicationEffects.evaluate(state.applicationRules,running:runningApplications,frontmost:frontmostApplication)
-        guard next != applicationEffects else { return }
+        var changed = next != applicationEffects
         let wasStopped = applicationEffects.stopped
-        applicationEffects = next
-        if next.paused { intent.suspensions.insert("application") } else { intent.suspensions.remove("application") }
+        if changed {
+            applicationEffects = next
+            if next.paused { intent.suspensions.insert("application") } else { intent.suspensions.remove("application") }
+        }
+        let pauseForApp = shouldPauseForFrontmostApp()
+        let hadAppInFront = intent.suspensions.contains("appInFront")
+        if pauseForApp { intent.suspensions.insert("appInFront") } else { intent.suspensions.remove("appInFront") }
+        if pauseForApp != hadAppInFront { changed = true }
+        guard changed else { return }
         if wasStopped && !next.stopped { reconcile() }
         applyRuntimePolicy()
+    }
+    /// Finder and our own processes do not count as "an app in front":
+    /// clicking the desktop focuses Finder and must not pause the wallpaper.
+    private func shouldPauseForFrontmostApp() -> Bool {
+        guard state.performance.pauseWhenAnyAppInFront, let id = frontmostApplication, !id.isEmpty else { return false }
+        let ignored: Set<String> = [
+            "com.apple.finder",
+            "com.apple.dock",
+            "com.apple.systemuiserver",
+            "com.apple.controlcenter",
+            "com.apple.notificationcenterui",
+            "com.apple.Spotlight",
+            "com.apple.loginwindow",
+            "local.zongzihao.VideoWallpaper",
+        ]
+        return !ignored.contains(id)
     }
     private func playlistEligible(ignoringBusy: Bool = false) -> Bool {
         let targetAvailable = state.playlist.targetDisplayID.map { target in displays.contains { $0.id == target } } ?? !displays.isEmpty

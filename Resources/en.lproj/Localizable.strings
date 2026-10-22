@@ -94,6 +94,8 @@
 "library.pauseInLowPowerMode" = "Pause in Low Power Mode";
 "library.pauseOnBatteryPower" = "Pause on battery power";
 "library.pauseWhenTheDesktopIsFullyCovered" = "Pause when the desktop is fully covered";
+"library.pauseWhenAnyAppInFront" = "Pause when any app is in front";
+"library.status.appInFrontPaused" = "App in front · Paused";
 "library.performancePower" = "Performance & Power";
 "library.playSound" = "Play Sound";
 "library.preparingVideo" = "Preparing video…";

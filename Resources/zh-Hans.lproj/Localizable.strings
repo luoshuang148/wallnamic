@@ -94,6 +94,8 @@
 "library.pauseInLowPowerMode" = "低电量模式时暂停";
 "library.pauseOnBatteryPower" = "电池供电时暂停";
 "library.pauseWhenTheDesktopIsFullyCovered" = "桌面完全被遮挡时暂停";
+"library.pauseWhenAnyAppInFront" = "任意前台应用时暂停";
+"library.status.appInFrontPaused" = "有应用在前台 · 暂停";
 "library.performancePower" = "性能与电源";
 "library.playSound" = "播放声音";
 "library.preparingVideo" = "正在准备视频…";

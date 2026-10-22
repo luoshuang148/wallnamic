@@ -348,6 +348,8 @@ struct PerformanceView: View {
                 Divider()
                 option(L("library.pauseWhenTheDesktopIsFullyCovered"), binding: setting(\.pauseWhenOccluded))
                 Divider()
+                option(L("library.pauseWhenAnyAppInFront"), binding: setting(\.pauseWhenAnyAppInFront))
+                Divider()
                 option(L("library.pauseOnBatteryPower"), binding: setting(\.pauseOnBattery))
                 Divider()
                 option(L("library.pauseInLowPowerMode"), binding: setting(\.pauseInLowPowerMode))
