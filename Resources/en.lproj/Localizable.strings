@@ -67,7 +67,7 @@
 "error.workshop.steamReturnedUnrecognizedWallpaperInformation" = "Steam returned unrecognized wallpaper information.";
 "error.workshop.theSteamManifestIsCorruptedAndCannotBe" = "The Steam manifest is corrupted and cannot be read.";
 "error.workshop.theWorkshopIDMustBeAValidPositive" = "The workshop ID must be a valid positive integer.";
-"library.addWallpaper" = "Add Wallpaper";
+"library.addWallpaper" = "Import Video";
 "library.allWallpapers" = "All Wallpapers";
 "library.applyTo" = "Apply to";
 "library.applyToAllDisplays" = "Apply to All Displays";
@@ -106,8 +106,8 @@
 "library.scaling" = "Scaling";
 "library.searchByNameOrID" = "Search by name or ID";
 "library.searchMyWallpapers" = "Search my wallpapers";
-"library.selectTheEntireWallpaperFolderContainingProjectJson" = "Select the entire wallpaper folder containing project.json and the video file.";
-"library.selectVideoWallpaperFolder" = "Select Video Wallpaper Folder";
+"library.selectTheEntireWallpaperFolderContainingProjectJson" = "Select a video file, or a wallpaper folder that contains project.json.";
+"library.selectVideoWallpaperFolder" = "Import Video";
 "library.settings" = "Settings";
 "library.showAllWallpapers" = "Show All Wallpapers";
 "library.showInFinder" = "Show in Finder";
@@ -254,7 +254,7 @@
 "workshop.downloadFromLinkTitle" = "Download from Link";
 "workshop.downloadSelectedVideos" = "Download Selected Videos";
 "workshop.importLocalDownloads" = "Import Local Downloads";
-"workshop.importWallpaperFolder" = "Import Wallpaper Folder…";
+"workshop.importWallpaperFolder" = "Import Video…";
 "workshop.imported" = "Imported";
 "workshop.importing" = "Importing…";
 "workshop.login.terminalClosePrompt" = "Press Return to close this window…";

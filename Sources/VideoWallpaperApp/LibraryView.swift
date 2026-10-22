@@ -234,7 +234,10 @@ struct LibraryView: View {
         VStack(spacing: 18) {
             Image(systemName: "play.rectangle.on.rectangle").font(.system(size: 52, weight: .ultraLight)).foregroundStyle(accent)
             Text(L("library.noWallpapersYet")).font(.title2.weight(.medium))
-            Button(L("library.addWallpaper")) { showsWorkshop = true }.buttonStyle(.borderedProminent).controlSize(.large).disabled(model.isBusy)
+            HStack(spacing: 12) {
+                Button(L("library.addWallpaper")) { importFolder() }.buttonStyle(.borderedProminent).controlSize(.large).disabled(model.isBusy)
+                Button(L("library.workshop")) { showsWorkshop = true }.controlSize(.large).disabled(model.isBusy)
+            }
             if model.isBusy { ProgressView(model.importStatus == nil ? L("library.checkingVideo") : L("library.preparingVideo")).font(.caption) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -296,12 +299,19 @@ struct LibraryView: View {
         panel.message = L("library.selectTheEntireWallpaperFolderContainingProjectJson")
         panel.prompt = L("library.import")
         panel.canChooseDirectories = true
-        panel.canChooseFiles = false
+        panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
+        panel.allowedFileTypes = ["mp4", "mov", "m4v", "mkv", "webm", "avi"]
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor in
-                if let id = await model.importFolder(url) {
+                let id: String?
+                if url.hasDirectoryPath {
+                    id = await model.importFolder(url)
+                } else {
+                    id = await model.importVideo(url)
+                }
+                if let id {
                     searchText = ""; favoritesOnly = false; groupID = nil; selectedID = id
                     showsWorkshop = false; searchFocused = false
                 }

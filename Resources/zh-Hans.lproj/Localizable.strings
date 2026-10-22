@@ -67,7 +67,7 @@
 "error.workshop.steamReturnedUnrecognizedWallpaperInformation" = "Steam 返回了无法识别的壁纸信息。";
 "error.workshop.theSteamManifestIsCorruptedAndCannotBe" = "Steam 清单格式损坏，无法读取。";
 "error.workshop.theWorkshopIDMustBeAValidPositive" = "创意工坊编号须为有效的正整数。";
-"library.addWallpaper" = "添加壁纸";
+"library.addWallpaper" = "导入视频";
 "library.allWallpapers" = "全部壁纸";
 "library.applyTo" = "应用到";
 "library.applyToAllDisplays" = "应用到所有屏幕";
@@ -106,8 +106,8 @@
 "library.scaling" = "画面显示";
 "library.searchByNameOrID" = "搜索名称或编号";
 "library.searchMyWallpapers" = "搜索我的壁纸";
-"library.selectTheEntireWallpaperFolderContainingProjectJson" = "选择包含 project.json 和视频文件的整个壁纸文件夹。";
-"library.selectVideoWallpaperFolder" = "选择视频壁纸文件夹";
+"library.selectTheEntireWallpaperFolderContainingProjectJson" = "请选择视频文件，或包含 project.json 的壁纸文件夹。";
+"library.selectVideoWallpaperFolder" = "导入视频";
 "library.settings" = "设置";
 "library.showAllWallpapers" = "显示全部壁纸";
 "library.showInFinder" = "在 Finder 中显示";
@@ -254,7 +254,7 @@
 "workshop.downloadFromLinkTitle" = "通过链接下载";
 "workshop.downloadSelectedVideos" = "下载所选视频";
 "workshop.importLocalDownloads" = "导入本机已下载";
-"workshop.importWallpaperFolder" = "导入壁纸文件夹…";
+"workshop.importWallpaperFolder" = "导入视频…";
 "workshop.imported" = "已导入";
 "workshop.importing" = "正在导入…";
 "workshop.login.terminalClosePrompt" = "按回车关闭此窗口…";

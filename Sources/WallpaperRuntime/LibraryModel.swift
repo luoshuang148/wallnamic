@@ -113,6 +113,26 @@ public enum LibraryMode { case standalone, management, player }
         } catch is CancellationError { }
         catch { errorMessage = error.localizedDescription }
     }
+    @discardableResult public func importVideo(_ video: URL, onProgress: ((String) -> Void)? = nil) async -> String? {
+        guard !terminating else { return nil }
+        do {
+            let root = storeURL.deletingLastPathComponent().appendingPathComponent("ImportedWallpapers", isDirectory: true)
+            let materialized = try WallpaperProject.makeImportFolder(forVideo: video, under: root)
+            guard let id = await importFolder(materialized.folder, onProgress: onProgress) else { return nil }
+            if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                var next = state
+                next.projects[index] = next.projects[index].identifyingSourceFolder(materialized.sourcePath)
+                try? commit(next)
+            }
+            return id
+        } catch is CancellationError {
+            return nil
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     @discardableResult public func importFolder(_ folder: URL, onProgress: ((String) -> Void)? = nil) async -> String? {
         guard !terminating else { return nil }
         let ticket = beginOperation()
