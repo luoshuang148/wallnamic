@@ -38,6 +38,19 @@ Static wallpaper changes affect only each display's **current Space**. Other Spa
 
 Playlists are off by default and app rules start empty. On first launch, login startup defaults to running the background player directly, without a management window or menu-bar icon. Disabling startup in Settings is remembered. Login startup uses macOS Login Items and may need approval and an installation in Applications. macOS may also ask for access to protected folders containing imported media; files you deny access to cannot play.
 
+## Quality and resource use (source candidate build 23)
+
+Under **设置 → 性能与电源 → 画质模式** (Settings → Performance and power → Quality mode):
+
+- **原画质** (Original) is the default. Desktop playback retains the source resolution and frame rate and creates no energy-saving copy.
+- **省电** (Energy saving) prepares a copy capped at 1920 pixels on the longest edge and 30fps, without upscaling. Unprepared displays keep playing their original videos, with a preparation message. New copies are generated only on AC power, outside Low Power Mode and system suspension. Ready copies can play on battery.
+
+HDR and unsupported conversions retain original quality and show a message. Switching back uses the source; originals are never overwritten. Published copies use a 1 GiB cache, excluding files currently playing from eviction. If pinned files exhaust the budget, new copies fall back to the source. Generation also needs temporary disk space and briefly consumes resources; assess playback savings after preparation finishes.
+
+With occlusion pausing enabled, a desktop covered continuously for 30 seconds releases its decoder and restores when visible. Disabling that setting keeps hidden playback running. Lock, display sleep, and inactive sessions release resources immediately. Manual pause on a visible desktop keeps its still frame. Covers use a bounded image cache; animated previews retain original quality.
+
+See the [performance report](performance/resource-efficiency-results.md) for measurements and validation limits. These source changes are not included in the public 0.9.3 build 22 download.
+
 ## Optional tools
 
 ### FFmpeg
@@ -83,6 +96,7 @@ For compatibility, settings remain under `~/Library/Application Support/VideoWal
 | `state.json` | Library, display assignments, custom names, playback, and automation settings |
 | `workshop.json` | Download account name and tool paths |
 | `ConvertedVideos/` | Converted media cache; keep files still in use |
+| `PlaybackVariants/` | Regenerable energy-saving copies; can be cleared after completely quitting the app |
 | `Runtime/` | Singleton lease, current player session, and shutdown requests; no account credentials |
 | `ExitWallpapers/` | Static frames installed as system wallpapers; older images may still be used by other Spaces |
 

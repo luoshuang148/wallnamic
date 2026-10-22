@@ -7,11 +7,27 @@ public struct Assignment: Codable, Equatable {
     public init(projectID: String, fit: FitMode = .fill) { self.projectID = projectID; self.fit = fit }
 }
 public enum AutomaticPauseReason: String, Hashable { case occluded, battery, lowPowerMode }
+public enum PlaybackQualityMode: String, Codable, CaseIterable {
+    case original, energySaving
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: value) ?? .original
+    }
+}
 public struct PerformanceSettings: Codable, Equatable {
     public var pauseWhenOccluded = true
     public var pauseOnBattery = false
     public var pauseInLowPowerMode = true
+    public var qualityMode: PlaybackQualityMode = .original
     public init() {}
+    private enum CodingKeys: String, CodingKey { case pauseWhenOccluded, pauseOnBattery, pauseInLowPowerMode, qualityMode }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        pauseWhenOccluded = try values.decodeIfPresent(Bool.self, forKey: .pauseWhenOccluded) ?? true
+        pauseOnBattery = try values.decodeIfPresent(Bool.self, forKey: .pauseOnBattery) ?? false
+        pauseInLowPowerMode = try values.decodeIfPresent(Bool.self, forKey: .pauseInLowPowerMode) ?? true
+        qualityMode = try values.decodeIfPresent(PlaybackQualityMode.self, forKey: .qualityMode) ?? .original
+    }
     public func pauseReasons(onBattery: Bool, lowPowerMode: Bool, occluded: Bool) -> Set<AutomaticPauseReason> {
         var reasons: Set<AutomaticPauseReason> = []
         if pauseWhenOccluded && occluded { reasons.insert(.occluded) }

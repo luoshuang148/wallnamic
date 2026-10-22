@@ -61,3 +61,6 @@ secrets*
 
 # Generated original demo wallpapers; keep out of Git
 demo/
+
+# Python profiling tools
+__pycache__/

@@ -155,7 +155,7 @@ private struct WorkshopPreferences: Codable { var account: String; var toolPath:
     }
     @discardableResult public func importVideo(_ folder: URL) async throws -> WorkshopImportResult {
         _ = try WallpaperProject.load(folder: folder)
-        if let id = try? WorkshopID(folder.lastPathComponent), alreadyImported(id) { return .existing }
+        if let id = try? WorkshopID(folder.lastPathComponent), alreadyImported(id) { library.refreshArtwork(); return .existing }
         try Task.checkCancellation()
         // Library restore/apply owns its generation until finished. Do not supersede it.
         while library.isBusy { try await Task.sleep(for: .milliseconds(100)) }

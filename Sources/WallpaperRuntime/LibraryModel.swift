@@ -6,6 +6,7 @@ import WallpaperCore
 public enum LibraryMode { case standalone, management, player }
 
 @MainActor public final class LibraryModel: ObservableObject {
+    @Published public private(set) var artworkRevision = 0
     @Published public private(set) var state = AppState()
     @Published public private(set) var displays: [Display] = Display.current
     @Published public private(set) var isBusy = false
@@ -16,7 +17,7 @@ public enum LibraryMode { case standalone, management, player }
     private var runningApplications: Set<String> = []
     private var frontmostApplication: String?
     private var playlistClock = PlaylistClock()
-    public let engine = WallpaperEngine()
+    public let engine: WallpaperEngine
     public let storeURL: URL
     public let mode: LibraryMode
     @Published private var externalPlaybackStatus: [String: String] = [:]
@@ -26,12 +27,17 @@ public enum LibraryMode { case standalone, management, player }
     private var pendingOperations = 0
     private var conversions: [Int: Task<WallpaperProject, Error>] = [:]
     private var persistenceBlocked = false
+    private var needsPlaybackRefresh = false
+    @Published public private(set) var variantStatus: String?
     private var onBattery = false
     private var lowPowerMode = false
     private var terminating = false
     private var pendingReloadBaseline: AppState?
+    private var stateFileMonitor = StateFileChangeMonitor()
+    public var onPlaybackStatusChange: (() -> Void)?
 
     public init(storeURL: URL, mode: LibraryMode = .standalone) {
+        self.engine = WallpaperEngine(variantStore: PlaybackVariantStore(cacheRoot: storeURL.deletingLastPathComponent().appendingPathComponent("PlaybackVariants", isDirectory: true)))
         self.storeURL = storeURL
         self.mode = mode
         do { state = try StateStore.load(from: storeURL) }
@@ -48,12 +54,27 @@ public enum LibraryMode { case standalone, management, player }
         }
         intent.manuallyPaused = state.manuallyPaused
         engine.onError = { [weak self] message in self?.errorMessage = message }
-        engine.onPlaybackChange = { [weak self] in self?.objectWillChange.send() }
+        engine.onPlaybackChange = { [weak self] in
+            self?.objectWillChange.send()
+            self?.onPlaybackStatusChange?()
+        }
+        engine.variantStore.onChange = { [weak self] in
+            guard let self else { return }
+            self.setVariantStatus(self.engine.variantStore.statusMessage)
+            self.onPlaybackStatusChange?()
+        }
+        engine.variantStore.onReady = { [weak self] in
+            guard let self, !self.terminating, self.state.performance.qualityMode == .energySaving else { return }
+            self.needsPlaybackRefresh = true
+            if !self.isBusy { self.needsPlaybackRefresh = false; self.reconcile() }
+        }
         engine.setOcclusionPolicy(state.performance.pauseWhenOccluded)
         engine.setMuted(state.isMuted)
     }
+    public func refreshArtwork() { artworkRevision &+= 1 }
     public func restore(revalidate: Bool = true) async {
         guard !terminating else { return }
+        refreshArtwork()
         let ticket = beginOperation()
         defer { endOperation() }
         var restored: Set<String> = []
@@ -114,6 +135,7 @@ public enum LibraryMode { case standalone, management, player }
             if let index = next.projects.firstIndex(where: { $0.id == project.id }) { next.projects[index] = project }
             else { next.projects.append(project) }
             try commit(next)
+            refreshArtwork()
             readyProjects.insert(project.id)
             mediaInfo[project.id] = info
             errorMessage = nil
@@ -143,7 +165,7 @@ public enum LibraryMode { case standalone, management, player }
         return displays.compactMap { display in
             // An installed session is authoritative even if an apply is still preparing.
             if let session = engine.sessions[display.id] {
-                return ExitWallpaper(display:display,videoURL:URL(fileURLWithPath:session.videoPath),time:session.player.currentTime(),fit:session.fit)
+                return ExitWallpaper(display:display,videoURL:URL(fileURLWithPath:session.videoPath),time:session.playbackTime,fit:session.fit)
             }
             guard let assignment = state.assignment(for:display.id),
                   let project = state.projects.first(where:{ $0.id == assignment.projectID }),
@@ -252,12 +274,14 @@ public enum LibraryMode { case standalone, management, player }
     public var shouldPlay: Bool { intent.shouldPlay }
     public var isSystemSuspended: Bool { !intent.suspensions.isEmpty }
     public func setPerformance(_ settings: PerformanceSettings) {
+        let oldQuality = state.performance.qualityMode
         var next = state
         next.performance = settings
         do {
             try commit(next)
             engine.setOcclusionPolicy(settings.pauseWhenOccluded)
             updatePowerState(onBattery: onBattery, lowPowerMode: lowPowerMode)
+            if oldQuality != state.performance.qualityMode { reconcile() }
         } catch { errorMessage = error.localizedDescription }
     }
     public func updatePowerState(onBattery: Bool, lowPowerMode: Bool) {
@@ -270,7 +294,10 @@ public enum LibraryMode { case standalone, management, player }
         if reasons.contains(.lowPowerMode) { intent.suspensions.insert("lowPowerMode") }
         applyRuntimePolicy()
     }
-    public func setExternalPlaybackStatus(_ status: [String: String]) { externalPlaybackStatus = status }
+    public func setExternalPlaybackStatus(_ status: [String: String]) {
+        guard externalPlaybackStatus != status else { return }
+        externalPlaybackStatus = status
+    }
     public func playbackStatus(for displayID: String) -> String {
         if mode == .management { return externalPlaybackStatus[displayID] ?? L("library.status.waitingForBackgroundPlayback") }
         if applicationEffects.stopped { return L("library.status.applicationRuleResourcesFreed") }
@@ -287,16 +314,22 @@ public enum LibraryMode { case standalone, management, player }
         guard mode != .management else { return }
         guard !terminating else { return }
         guard !applicationEffects.stopped else { engine.stop(); return }
+        if isBusy { needsPlaybackRefresh = true; return }
         var playable = state
         playable.isMuted = effectiveMuted
         playable.projects = state.projects.filter { readyProjects.contains($0.id) }
         engine.reconcile(state: playable, displays: displays, shouldPlay: intent.shouldPlay)
     }
     private var effectiveMuted: Bool { state.isMuted || applicationEffects.muted }
+    public func setVariantStatus(_ message: String?) {
+        if variantStatus != message { variantStatus = message }
+    }
     private func applyRuntimePolicy() {
         guard mode != .management else { return }
         guard !terminating else { return }
         if applicationEffects.stopped { engine.stop(); return }
+        engine.variantStore.setGenerationAllowed(!onBattery && !lowPowerMode && !isSystemSuspended)
+        engine.setSystemSuspended(!intent.suspensions.isDisjoint(with: ["sleep", "displaySleep", "inactiveSession", "lock"]))
         engine.setMuted(effectiveMuted)
         engine.setPlaying(intent.shouldPlay)
     }
@@ -389,9 +422,17 @@ public enum LibraryMode { case standalone, management, player }
             refreshApplicationEffects()
         }
     }
+    public func reloadSharedStateIfChanged() async {
+        guard !terminating else { return }
+        do {
+            guard try stateFileMonitor.consumeChange(at: storeURL) else { return }
+            await reloadSharedState()
+        } catch { stateFileMonitor.invalidate(); errorMessage = error.localizedDescription }
+    }
     public func reloadSharedState() async {
         guard !terminating else { return }
         do {
+            _ = try stateFileMonitor.consumeChange(at: storeURL)
             let fresh = try StateStore.load(from: storeURL)
             let old = pendingReloadBaseline ?? state
             pendingReloadBaseline = nil
@@ -410,10 +451,10 @@ public enum LibraryMode { case standalone, management, player }
             updatePowerState(onBattery: onBattery, lowPowerMode: lowPowerMode)
             refreshApplicationEffects()
             let assignmentChanged = old.assignments != fresh.assignments || old.defaultAssignment != fresh.defaultAssignment
-            if old.projects != fresh.projects || (mode != .management && assignmentChanged) {
+            if old.projects != fresh.projects || (mode != .management && (assignmentChanged || old.performance.qualityMode != fresh.performance.qualityMode)) {
                 await restore(revalidate: false)
             } else { applyRuntimePolicy() }
-        } catch { errorMessage = error.localizedDescription }
+        } catch { stateFileMonitor.invalidate(); errorMessage = error.localizedDescription }
     }
     private func beginOperation() -> Int {
         generation += 1
@@ -425,5 +466,9 @@ public enum LibraryMode { case standalone, management, player }
     private func endOperation() {
         pendingOperations -= 1
         isBusy = pendingOperations > 0
+        if !isBusy, needsPlaybackRefresh, !terminating {
+            needsPlaybackRefresh = false
+            reconcile()
+        }
     }
 }

@@ -96,7 +96,7 @@ struct LibraryView: View {
                         ForEach(visibleProjects) { item in
                             Button { selectedID = item.id; searchFocused = false } label: {
                                 HStack(spacing: 10) {
-                                    Thumbnail(path: item.previewPath).frame(width: 58, height: 40).clipShape(RoundedRectangle(cornerRadius: 6))
+                                    Thumbnail(path: item.previewPath, revision: model.artworkRevision).frame(width: 58, height: 40).clipShape(RoundedRectangle(cornerRadius: 6))
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(model.displayName(for:item)).font(.system(size: 12, weight: .medium)).lineLimit(2)
                                         if let groupName = model.state.organization.memberships[item.id].flatMap({ id in model.state.organization.groups.first { $0.id == id }?.name }) {
@@ -154,7 +154,7 @@ struct LibraryView: View {
     private func detail(_ project: WallpaperProject) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(spacing: 10) {
-                WallpaperPreview(project:project,active:!showsSettings && !showsWorkshop && renamingProject == nil)
+                WallpaperPreview(project:project,revision:model.artworkRevision,active:!showsSettings && !showsWorkshop && renamingProject == nil)
                 HStack {
                     Spacer()
                     if let info = model.mediaInfo[project.id] {
@@ -328,6 +328,14 @@ struct PerformanceView: View {
                 Text(L("library.performancePower")).font(.title2.weight(.semibold))
             }
             VStack(alignment: .leading, spacing: 20) {
+                Picker(L("settings.qualityMode"), selection: Binding(get: { model.state.performance.qualityMode }, set: { value in
+                    var settings = model.state.performance; settings.qualityMode = value; model.setPerformance(settings)
+                })) {
+                    Text(L("settings.qualityOriginal")).tag(PlaybackQualityMode.original)
+                    Text(L("settings.qualityEnergySaving")).tag(PlaybackQualityMode.energySaving)
+                }
+                if let message = model.variantStatus { Text(message).font(.caption).foregroundStyle(.secondary) }
+                Divider()
                 option(L("library.pauseWhenTheDesktopIsFullyCovered"), binding: setting(\.pauseWhenOccluded))
                 Divider()
                 option(L("library.pauseOnBatteryPower"), binding: setting(\.pauseOnBattery))
@@ -349,19 +357,19 @@ struct PerformanceView: View {
 
 private struct WallpaperPreview: View {
     let project: WallpaperProject
+    let revision: Int
     let active: Bool
     @StateObject private var preview = VideoPreviewModel()
     @State private var frameReady = false
     @State private var surfaceVisible = false
+    @State private var poster: CGImage?
     var body: some View {
-        let image = project.previewPath.flatMap { NSImage(contentsOfFile:$0) }
-        let size = image?.size ?? NSSize(width:16,height:9)
-        let posterRatio = size.width > 0 && size.height > 0 ? size.width/size.height : 16.0/9.0
+        let posterRatio = poster.map { Double($0.width) / Double($0.height) } ?? 16.0/9.0
         let ratio = frameReady ? (preview.aspectRatio ?? posterRatio) : posterRatio
         GeometryReader { geometry in
             let height = min(248,geometry.size.width/ratio)
             ZStack {
-                if let image { Image(nsImage:image).resizable().scaledToFit() }
+                if let poster { Image(decorative: poster, scale: 1).resizable().scaledToFit() }
                 else { Thumbnail(path:nil) }
                 VideoPreviewSurface(player:preview.player,onVisibility:{ visible in
                     surfaceVisible = visible
@@ -377,6 +385,13 @@ private struct WallpaperPreview: View {
             .shadow(color:.black.opacity(0.1),radius:10,y:3)
             .frame(width:geometry.size.width,height:geometry.size.height)
         }.frame(height:248)
+        .task(id: (project.previewPath ?? "") + "\0" + String(revision)) {
+            poster = nil
+            guard let path = project.previewPath else { return }
+            let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 1024)
+            guard !Task.isCancelled else { return }
+            poster = result
+        }
         .onAppear { preview.setProject(project) }
         .onChange(of:project.id + "\n" + project.videoPath) { _,_ in frameReady = false; preview.setProject(project) }
         .onChange(of:active) { _,value in preview.setVisible(surfaceVisible && value) }
@@ -386,11 +401,13 @@ private struct WallpaperPreview: View {
 
 private struct Thumbnail: View {
     let path: String?
+    var revision = 0
     var fit: FitMode = .fill
+    @State private var image: CGImage?
     var body: some View {
         GeometryReader { geometry in
-            if let path, let image = NSImage(contentsOfFile: path) {
-                Image(nsImage: image).resizable()
+            if let image {
+                Image(decorative: image, scale: 1).resizable()
                     .aspectRatio(contentMode: fit == .fit ? .fit : .fill)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .background(.black).clipped()
@@ -400,6 +417,13 @@ private struct Thumbnail: View {
                     Image(systemName: "film").font(.title).foregroundStyle(.secondary)
                 }
             }
+        }
+        .task(id: (path ?? "") + "\0" + String(revision)) {
+            image = nil
+            guard let path else { return }
+            let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 256)
+            guard !Task.isCancelled else { return }
+            image = result
         }
     }
 }

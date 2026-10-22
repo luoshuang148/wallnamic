@@ -23,11 +23,12 @@ public struct PlayerStatus: Codable {
     public var phase: PlayerPhase
     public var displays: [String: PlayerDisplayStatus]
     public var error: String?
+    public var resourceStatus: String?
     public var updatedAt = Date()
     public init(sessionID: UUID, pid: Int32, build: String, parentAppPath: String, phase: PlayerPhase,
-                displays: [String: PlayerDisplayStatus], error: String?) {
+                displays: [String: PlayerDisplayStatus], error: String?, resourceStatus: String? = nil) {
         self.sessionID = sessionID; self.pid = pid; self.build = build; self.parentAppPath = parentAppPath
-        self.phase = phase; self.displays = displays; self.error = error
+        self.phase = phase; self.displays = displays; self.error = error; self.resourceStatus = resourceStatus
     }
 }
 struct PlayerOwnership: Codable { var sessionID: UUID; var pid: Int32 }
@@ -40,6 +41,7 @@ public struct BackgroundPlayerPaths {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("VideoWallpaper/state.json")
     }
+    public static let statusChangedNotification = Notification.Name("local.zongzihao.WallFlow.statusChanged")
     public static let commandNotification = Notification.Name("local.zongzihao.WallFlow.playerCommand")
     public static let stoppedNotification = Notification.Name("local.zongzihao.WallFlow.playerStopped")
     public static let stoppingNotification = Notification.Name("local.zongzihao.WallFlow.playerStopping")

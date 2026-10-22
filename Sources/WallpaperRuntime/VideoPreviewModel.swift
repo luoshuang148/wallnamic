@@ -45,7 +45,10 @@ import WallpaperCore
                 try Task.checkCancellation()
                 guard let self, self.visible, self.generation == ticket else { return }
                 guard info.width > 0, info.height > 0 else { throw WallpaperError.message(L("error.preview.theVideoDimensionsAreInvalid")) }
-                let playback = PreviewPlayback(url:URL(fileURLWithPath:fresh.videoPath))
+                let asset = try await PlaybackAssetFactory.makeAsset(url: URL(fileURLWithPath: fresh.videoPath), includeAudio: false)
+                try Task.checkCancellation()
+                guard self.visible, self.generation == ticket else { return }
+                let playback = PreviewPlayback(asset: asset)
                 let player = playback.player, looper = playback.looper
                 self.aspectRatio = Double(info.width)/Double(info.height)
                 self.playback = playback
@@ -89,11 +92,11 @@ import WallpaperCore
 private final class PreviewPlayback {
     let player: AVQueuePlayer
     let looper: AVPlayerLooper
-    init(url:URL) {
+    init(asset: AVAsset) {
         player = AVQueuePlayer()
         player.isMuted = true; player.volume = 0
         player.preventsDisplaySleepDuringVideoPlayback = false
-        looper = AVPlayerLooper(player:player,templateItem:AVPlayerItem(url:url))
+        looper = AVPlayerLooper(player:player,templateItem:AVPlayerItem(asset:asset))
     }
     func stop() { player.pause(); looper.disableLooping(); player.removeAllItems() }
     deinit { stop() }
