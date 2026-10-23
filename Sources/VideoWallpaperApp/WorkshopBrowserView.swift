@@ -10,6 +10,7 @@ private struct WorkshopWebSurface: NSViewRepresentable {
 }
 
 struct WorkshopBrowserView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: WorkshopModel
     @ObservedObject var library: LibraryModel
     @StateObject private var browser = WorkshopBrowser()

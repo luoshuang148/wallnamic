@@ -6,12 +6,25 @@ struct SettingsView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var startup: LoginStartupModel
     @ObservedObject var exit: ManagementExitCoordinator
+    @ObservedObject private var language = LanguageStore.shared
     @Environment(\.dismiss) private var dismiss
     @State private var page: Page = .library
     private enum Page: CaseIterable {
-        case library, performance
-        var title: String { self == .library ? L("settings.libraryAutoplay") : L("library.performancePower") }
-        var symbol: String { self == .library ? "slider.horizontal.3" : "leaf" }
+        case library, performance, language
+        var title: String {
+            switch self {
+            case .library: return L("settings.libraryAutoplay")
+            case .performance: return L("library.performancePower")
+            case .language: return L("settings.language")
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .library: return "slider.horizontal.3"
+            case .performance: return "leaf"
+            case .language: return "globe"
+            }
+        }
     }
     var body: some View {
         VStack(spacing:12) {
@@ -35,13 +48,15 @@ struct SettingsView: View {
                     Spacer()
                 }.padding(.trailing,12).frame(width:190)
                 Divider()
-                ZStack(alignment:.top) {
-                    FeatureSettingsView(model:model,startup:startup,embedded:true)
-                        .opacity(page == .library ? 1 : 0)
-                        .allowsHitTesting(page == .library).accessibilityHidden(page != .library)
-                    PerformanceView(model:model,embedded:true)
-                        .opacity(page == .performance ? 1 : 0)
-                        .allowsHitTesting(page == .performance).accessibilityHidden(page != .performance)
+                Group {
+                    switch page {
+                    case .library:
+                        FeatureSettingsView(model:model,startup:startup,embedded:true)
+                    case .performance:
+                        PerformanceView(model:model,embedded:true)
+                    case .language:
+                        LanguageSettingsView()
+                    }
                 }.frame(width:650,height:530,alignment:.top)
             }
             Divider()

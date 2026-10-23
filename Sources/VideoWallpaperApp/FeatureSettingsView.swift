@@ -6,6 +6,7 @@ import WallpaperRuntime
 
 @MainActor
 struct FeatureSettingsView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: LibraryModel
     @ObservedObject var startup: LoginStartupModel
     var embedded = false

@@ -4,6 +4,7 @@ import WallpaperCore
 import WallpaperRuntime
 
 struct LibraryView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: LibraryModel
     @ObservedObject var workshop: WorkshopModel
     @ObservedObject var startup: LoginStartupModel
@@ -321,6 +322,7 @@ struct LibraryView: View {
 }
 
 struct PerformanceView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: LibraryModel
     var embedded = false
     @Environment(\.dismiss) private var dismiss
@@ -368,6 +370,7 @@ struct PerformanceView: View {
 }
 
 private struct WallpaperPreview: View {
+    @ObservedObject private var language = LanguageStore.shared
     let project: WallpaperProject
     let revision: Int
     let active: Bool
@@ -441,6 +444,7 @@ private struct Thumbnail: View {
 }
 
 private struct RenameWallpaperView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: LibraryModel
     let project: WallpaperProject
     @Environment(\.dismiss) private var dismiss

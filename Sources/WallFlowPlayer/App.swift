@@ -18,8 +18,12 @@ import WallpaperRuntime
     private var lease: PlayerLease?
     private var host: DesktopPlaybackHost?
     private var terminationStarted = false
+    private var languageObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        languageObserver = DistributedNotificationCenter.default().addObserver(
+            forName: LanguageStore.languageDidChangeNotification, object: nil, queue: .main
+        ) { _ in LanguageStore.shared.reloadFromDefaults() }
         var stateURL = BackgroundPlayerPaths.defaultStateURL
         let args = CommandLine.arguments
         if let index = args.firstIndex(of: "--wallflow-state"), index + 1 < args.count { stateURL = URL(fileURLWithPath: args[index + 1]) }
@@ -68,6 +72,8 @@ import WallpaperRuntime
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
+        if let languageObserver { DistributedNotificationCenter.default().removeObserver(languageObserver) }
+        languageObserver = nil
         host?.finish()
         lease?.release(); lease = nil
         if let host {

@@ -94,7 +94,7 @@ The [user guide](docs/USER_GUIDE.en.md) covers tool setup, playlists, power poli
 
 ## Source localization status
 
-The source now includes Simplified Chinese and English localization tables, with resource checks and compilation completed. The public **0.9.3 package still has a Chinese-only interface**. Live visual acceptance of both languages remains pending before an English binary release. See [localization verification](docs/LOCALIZATION.md).
+The source now includes ten interface languages: Simplified and Traditional Chinese, English, Japanese, Korean, German, French, Spanish, Russian, and Brazilian Portuguese. Settings → Language switches between Follow System and any of them immediately, and resource checks and compilation pass. The public **0.9.3 package still has a Chinese-only interface**. Everything beyond Simplified Chinese and English is an initial translation that has not yet been reviewed by native speakers or visually accepted in the running app, so each language still needs a full UI pass before a multilingual binary release. See [localization and language support](docs/LOCALIZATION.md).
 
 ## Build from source
 

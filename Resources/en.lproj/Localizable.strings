@@ -178,6 +178,9 @@
 "settings.intervalMinutesRange" = "minutes (1–1440)";
 "settings.isInForeground" = "Is in foreground";
 "settings.isRunning" = "Is running";
+"settings.language" = "Language";
+"settings.language.description" = "Changes apply immediately. Wallpaper playback continues without interruption.";
+"settings.language.system" = "Follow System";
 "settings.launchAtLogin" = "Launch at Login";
 "settings.launchAtLoginDisabled" = "Launch at login disabled";
 "settings.launchAtLoginEnabled" = "Launch at login enabled";

@@ -33,9 +33,11 @@ done
 if [ -f "$PROJECT_DIR/Resources/AppIcon.icns" ]; then
     cp "$PROJECT_DIR/Resources/AppIcon.icns" "$PLAYER_APP/Contents/Resources/AppIcon.icns"
 fi
-for LANGUAGE in zh-Hans en; do
-    cp -R "$PROJECT_DIR/Resources/$LANGUAGE.lproj" "$STAGED_APP/Contents/Resources/"
-    cp -R "$PROJECT_DIR/Resources/$LANGUAGE.lproj" "$PLAYER_APP/Contents/Resources/"
+# Copy every localization table so adding a language never needs a build-script edit.
+for LPROJ in "$PROJECT_DIR"/Resources/*.lproj; do
+    [ -d "$LPROJ" ] || continue
+    cp -R "$LPROJ" "$STAGED_APP/Contents/Resources/"
+    cp -R "$LPROJ" "$PLAYER_APP/Contents/Resources/"
 done
 codesign --force --sign - "$PLAYER_APP"
 codesign --verify --strict "$PLAYER_APP"

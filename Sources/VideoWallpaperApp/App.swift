@@ -23,6 +23,7 @@ import WallpaperRuntime
     private var statusItem: NSStatusItem?
     private var pauseItem: NSMenuItem?
     private var cancellable: AnyCancellable?
+    private var languageCancellable: AnyCancellable?
     private var window: NSWindow!
     private var startup = LoginStartupModel()
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
@@ -55,6 +56,9 @@ import WallpaperRuntime
         })
         setupMainMenu()
         if !backgroundLogin { setupStatusItem() }
+        languageCancellable = LanguageStore.shared.$selection.dropFirst().sink { [weak self] _ in
+            Task { @MainActor in self?.languageDidChange() }
+        }
         startup.configureDefaultIfNeeded()
         if let error = startup.errorMessage { model.errorMessage = error }
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 690),
@@ -96,7 +100,7 @@ import WallpaperRuntime
         NSApplication.shared.mainMenu = menu
     }
     private func setupStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let item = statusItem ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem = item
         let menu = NSMenu(); menu.delegate = self
         let open = NSMenuItem(title: L("menu.manageWallpapers"), action: #selector(showLibrary), keyEquivalent: ""); open.target = self
@@ -105,12 +109,22 @@ import WallpaperRuntime
         pauseItem = pause; menu.addItem(pause); menu.addItem(.separator())
         let quit = NSMenuItem(title: L("menu.quitWallFlow"), action: #selector(quit), keyEquivalent: ""); quit.target = self
         menu.addItem(quit); item.menu = menu
-        cancellable = model.$state.map(\.manuallyPaused).removeDuplicates().sink { [weak self] paused in
-            let image = NSImage(systemSymbolName: paused ? "pause.rectangle" : "play.rectangle", accessibilityDescription: "Wallnamic")
-            image?.isTemplate = true
-            self?.statusItem?.button?.image = image
-            self?.statusItem?.button?.toolTip = paused ? L("menu.wallflowPaused") : "Wallnamic"
+        if cancellable == nil {
+            cancellable = model.$state.map(\.manuallyPaused).removeDuplicates().sink { [weak self] paused in
+                self?.updateStatusButton(paused: paused)
+            }
         }
+        updateStatusButton(paused: model.state.manuallyPaused)
+    }
+    private func updateStatusButton(paused: Bool) {
+        let image = NSImage(systemSymbolName: paused ? "pause.rectangle" : "play.rectangle", accessibilityDescription: "Wallnamic")
+        image?.isTemplate = true
+        statusItem?.button?.image = image
+        statusItem?.button?.toolTip = paused ? L("menu.wallflowPaused") : "Wallnamic"
+    }
+    private func languageDidChange() {
+        setupMainMenu()
+        if statusItem != nil { setupStatusItem() }
     }
     func menuWillOpen(_ menu: NSMenu) {
         pauseItem?.title = model.state.manuallyPaused ? L("menu.resumePlayback") : L("menu.pauseAll")
@@ -214,6 +228,7 @@ import WallpaperRuntime
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate(); refreshTask?.cancel(); startupTask?.cancel()
         cancellable?.cancel()
+        languageCancellable?.cancel()
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         statusItem = nil
         quiesce()

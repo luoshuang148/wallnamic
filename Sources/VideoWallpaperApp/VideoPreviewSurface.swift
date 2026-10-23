@@ -4,6 +4,7 @@ import SwiftUI
 import AVFoundation
 
 struct VideoPreviewSurface: NSViewRepresentable {
+    @ObservedObject private var language = LanguageStore.shared
     let player: AVQueuePlayer?
     let onVisibility: (Bool) -> Void
     let onReady: (Bool) -> Void
@@ -12,6 +13,7 @@ struct VideoPreviewSurface: NSViewRepresentable {
         view.onVisibility = onVisibility
         view.onReady = onReady
         view.setPlayer(player)
+        view.setAccessibilityLabel(L("preview.liveWallpaperPreview"))
     }
     static func dismantleNSView(_ view:PreviewSurfaceView,coordinator:()) { view.disconnect() }
 }

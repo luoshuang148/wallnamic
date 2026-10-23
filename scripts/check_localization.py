@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Check paired .strings tables, printf arguments, and literal Swift lookups."""
+"""Check every paired .strings table, printf arguments, and literal Swift lookups."""
 import argparse
 from collections import Counter
 import json
 from pathlib import Path
+import plistlib
 import re
 import sys
 
 ENTRY = re.compile(r'\s*(?:/\*.*?\*/\s*|//[^\n]*\n\s*)*("(?:[^"\\]|\\.)*")\s*=\s*("(?:[^"\\]|\\.)*")\s*;', re.S)
 FORMAT = re.compile(r'%(?:(\d+)\$)?[-+ #0]*(?:\d+)?(?:\.\d+)?(hh|ll|[hljztL])?([@diuoxXfFeEgGaAcCsSp%])')
+LANGUAGE_FILE = re.compile(r'^(?:Base|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)\.lproj$')
 
 
 def read_table(path):
@@ -41,21 +43,53 @@ def arguments(value):
     return result
 
 
+def read_tables(resources):
+    paths = sorted(resources.glob('*.lproj/Localizable.strings'))
+    tables = {path.parent.stem: read_table(path) for path in paths}
+    for directory in sorted(resources.glob('*.lproj')):
+        if not LANGUAGE_FILE.match(directory.name):
+            raise ValueError(f'{directory}: unrecognized localization directory name')
+        if not directory.is_dir() or not (directory / 'Localizable.strings').is_file():
+            raise ValueError(f'{directory}: missing Localizable.strings')
+    for language in ('en', 'zh-Hans'):
+        if language not in tables:
+            raise ValueError(f'missing {language}.lproj/Localizable.strings')
+    declared = {name for name in tables if name != 'Base'}
+    for name in ('Info.plist', 'PlayerInfo.plist'):
+        path = resources / name
+        if not path.is_file():
+            continue
+        localizations = plistlib.loads(path.read_bytes()).get('CFBundleLocalizations')
+        if localizations is None:
+            raise ValueError(f'{name}: missing CFBundleLocalizations')
+        missing = sorted(declared - set(localizations))
+        unexpected = sorted(set(localizations) - declared)
+        if missing or unexpected:
+            raise ValueError(f'{name}: CFBundleLocalizations mismatch: missing {missing}; unexpected {unexpected}')
+    return tables
+
+
 def check(resources, sources):
-    zh, en = [read_table(resources / language / 'Localizable.strings') for language in ('zh-Hans.lproj', 'en.lproj')]
-    if zh.keys() != en.keys():
-        raise ValueError(f'key mismatch: missing English {sorted(zh.keys() - en.keys())}; missing Chinese {sorted(en.keys() - zh.keys())}')
-    for key in zh:
-        if arguments(zh[key]) != arguments(en[key]):
-            raise ValueError(f'format argument mismatch: {key}')
+    tables = read_tables(resources)
+    reference = tables['en']
+    for language, table in tables.items():
+        missing = sorted(reference.keys() - table.keys())
+        unexpected = sorted(table.keys() - reference.keys())
+        if missing or unexpected:
+            raise ValueError(f'key mismatch in {language}: missing {missing}; unexpected {unexpected}')
+        mismatches = [key for key in reference if arguments(table[key]) != arguments(reference[key])]
+        if mismatches:
+            raise ValueError(f'format argument mismatch in {language}: {mismatches}')
     for path in sources.rglob('*.swift'):
         source = path.read_text(encoding='utf-8')
         keys = re.findall(r'\bL\("([^"\\]+)"\)', source)
         keys += re.findall(r"return error\('([^']+)'\)", source)
         for key in keys:
-            if key not in zh:
+            if key not in reference:
                 raise ValueError(f'{path}: missing lookup: {key}')
-    print(f'Localization OK: {len(zh)} keys per language; no duplicates, empty values, missing lookups, or format mismatches.')
+    keys = len(reference)
+    languages = ', '.join(sorted(tables))
+    print(f'Localization OK: {len(tables)} languages ({languages}) × {keys} keys; no duplicates, empty values, missing lookups, or format mismatches.')
 
 
 if __name__ == '__main__':

@@ -12,11 +12,15 @@
 - 静音预览使用无声轨素材，桌面循环项遵守当前声音路由；挂起和长期遮挡时卸载闲置解码资源。
 - 取消过时准备任务，列表和封面改用异步缩略图及 24 MiB 缓存；同路径封面在重新导入或打开时刷新。
 - 中英双语界面与本地化校验。
+- 新增繁体中文、日语、韩语、德语、法语、西班牙语、俄语和巴西葡萄牙语界面；构建脚本自动打包全部 `.lproj`，本地化校验器覆盖所有语言。新语言为初稿，尚未经母语者审校或实机验收。
+- 设置新增“语言”页，可在跟随系统与十种界面语言之间即时切换；主窗口、菜单和播放器语言同步，切换不中断壁纸播放。
 - Renamed the project to **Wallnamic** (formerly WallFlow); preserved identifiers and IPC for compatibility.
 - Preserve original desktop quality by default; add an optional 1920 / 30fps energy-saving mode, source fallback, HDR messaging, serial generation, and a 1 GiB cache.
 - Replace frequent polling with notifications, a five-second heartbeat, and a 30-second metadata fallback.
 - Use silent preview assets, enforce audio policy across loop items, release inactive decoders, and cancel obsolete preparations.
 - Bound asynchronous thumbnails to 24 MiB. Chinese and English UI localization.
+- Add Traditional Chinese, Japanese, Korean, German, French, Spanish, Russian, and Brazilian Portuguese interface tables; the build now packages every `.lproj`, and the localization checker validates all languages. The new tables are drafts pending native-speaker review and live UI acceptance.
+- Add a Language page in Settings to switch instantly between Follow System and the ten interface languages; the main window, menus, and player follow the choice without interrupting wallpaper playback.
 
 ## [0.9.3](https://github.com/luoshuang148/wallnamic/releases/tag/v0.9.3) — 2026-10-15
 

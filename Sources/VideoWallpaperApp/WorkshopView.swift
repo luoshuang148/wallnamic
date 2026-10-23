@@ -5,6 +5,7 @@ import WallpaperCore
 import WallpaperRuntime
 
 struct WorkshopView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: WorkshopModel
     @ObservedObject var library: LibraryModel
     let onImportFolder: () -> Void
@@ -126,6 +127,7 @@ struct WorkshopView: View {
 }
 
 private struct WorkshopLinkDownloadView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @ObservedObject var model: WorkshopModel
     @ObservedObject var library: LibraryModel
     @Environment(\.dismiss) private var dismiss
@@ -178,6 +180,7 @@ private struct SubscriptionWebView: NSViewRepresentable {
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 }
 private struct SubscriptionView: View {
+    @ObservedObject private var language = LanguageStore.shared
     @StateObject private var browser = SubscriptionBrowser()
     @Environment(\.dismiss) private var dismiss
     let onRead: ([WorkshopID]) -> Void

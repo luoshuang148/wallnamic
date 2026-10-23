@@ -178,6 +178,9 @@
 "settings.intervalMinutesRange" = "分钟（1–1440）";
 "settings.isInForeground" = "位于前台";
 "settings.isRunning" = "正在运行";
+"settings.language" = "语言";
+"settings.language.description" = "更改会立即生效，壁纸播放不会中断。";
+"settings.language.system" = "跟随系统";
 "settings.launchAtLogin" = "登录启动";
 "settings.launchAtLoginDisabled" = "登录启动已关闭";
 "settings.launchAtLoginEnabled" = "已启用登录启动";

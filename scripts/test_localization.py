@@ -3,6 +3,7 @@ from contextlib import redirect_stdout
 import io
 import json
 from pathlib import Path
+import plistlib
 import tempfile
 import unittest
 
@@ -24,6 +25,10 @@ class LocalizationCheckTests(unittest.TestCase):
         path = self.resources / (language + '.lproj') / 'Localizable.strings'
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('\n'.join(f'{json.dumps(k)} = {json.dumps(v)};' for k, v in rows), encoding='utf-8')
+
+    def write_plist(self, languages, name='Info.plist'):
+        with open(self.resources / name, 'wb') as file:
+            plistlib.dump({'CFBundleLocalizations': languages}, file)
 
     def run_check(self):
         with redirect_stdout(io.StringIO()):
@@ -81,6 +86,69 @@ class LocalizationCheckTests(unittest.TestCase):
 
     def test_escaped_percent_is_not_an_argument(self):
         self.assertEqual(arguments('100%% %@'), arguments('%@'))
+
+    def test_additional_matching_language_passes(self):
+        self.write('de', [('sample.title', 'Titel %@')])
+        (self.sources / 'Sample.swift').write_text('let title = L("sample.title")')
+        self.run_check()
+
+    def test_additional_language_with_missing_key_fails(self):
+        self.write('ja', [])
+        with self.assertRaisesRegex(ValueError, 'key mismatch in ja'):
+            self.run_check()
+
+    def test_additional_language_with_extra_key_fails(self):
+        self.write('ko', [('sample.title', '제목 %@'), ('sample.extra', '여분')])
+        with self.assertRaisesRegex(ValueError, 'key mismatch in ko'):
+            self.run_check()
+
+    def test_additional_language_with_wrong_format_argument_fails(self):
+        self.write('fr', [('sample.title', 'Titre %d')])
+        with self.assertRaisesRegex(ValueError, 'format argument mismatch in fr'):
+            self.run_check()
+
+    def test_missing_english_table_fails(self):
+        (self.resources / 'en.lproj' / 'Localizable.strings').unlink()
+        with self.assertRaisesRegex(ValueError, 'missing Localizable.strings'):
+            self.run_check()
+
+    def test_missing_chinese_table_fails(self):
+        (self.resources / 'zh-Hans.lproj' / 'Localizable.strings').unlink()
+        with self.assertRaisesRegex(ValueError, 'missing Localizable.strings'):
+            self.run_check()
+
+    def test_plist_with_matching_languages_passes(self):
+        self.write('de', [('sample.title', 'Titel %@')])
+        self.write_plist(['en', 'de', 'zh-Hans'])
+        self.run_check()
+
+    def test_plist_without_localizations_fails(self):
+        with open(self.resources / 'Info.plist', 'wb') as file:
+            plistlib.dump({'CFBundleName': 'Wallnamic'}, file)
+        with self.assertRaisesRegex(ValueError, 'missing CFBundleLocalizations'):
+            self.run_check()
+
+    def test_plist_missing_language_fails(self):
+        self.write('de', [('sample.title', 'Titel %@')])
+        self.write_plist(['en', 'zh-Hans'])
+        with self.assertRaisesRegex(ValueError, 'CFBundleLocalizations mismatch.*de'):
+            self.run_check()
+
+    def test_plist_extra_language_fails(self):
+        self.write_plist(['en', 'zh-Hans', 'fr'])
+        with self.assertRaisesRegex(ValueError, 'CFBundleLocalizations mismatch.*fr'):
+            self.run_check()
+
+    def test_plist_and_player_plist_are_both_checked(self):
+        self.write_plist(['en', 'zh-Hans'])
+        self.write_plist(['en'], name='PlayerInfo.plist')
+        with self.assertRaisesRegex(ValueError, 'PlayerInfo.plist: CFBundleLocalizations mismatch'):
+            self.run_check()
+
+    def test_unrecognized_lproj_directory_fails(self):
+        (self.resources / 'not-a-language.lproj').mkdir()
+        with self.assertRaisesRegex(ValueError, 'unrecognized localization directory name'):
+            self.run_check()
 
 
 if __name__ == '__main__':
