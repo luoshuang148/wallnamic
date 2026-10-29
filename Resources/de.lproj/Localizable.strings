@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "Die Struktur der Abonnementseite ist unbekannt.";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "Das Konto muss Wallpaper Engine besitzen. Schließen Sie die Steam-Anmeldung und die Steam Guard-Verifikation im Terminal ab.";
 "workshop.videoWallpapers" = "Video-Wallpaper · %@";
+
+"workshop.ui.collection" = "Meine Abonnements";
+"workshop.ui.discover" = "Entdecken";
+"workshop.ui.sync" = "Synchronisieren";
+"workshop.ui.all" = "Alle";
+"workshop.ui.pending" = "Nicht importiert";
+"workshop.ui.empty" = "Finde dein nächstes Hintergrundbild";
+"workshop.ui.selected" = "Ausgewählt";
+
+"workshop.ui.syncing" = "Abonnements werden synchronisiert";
+"workshop.ui.synced" = "Abonnements synchronisiert";
+"workshop.ui.syncAccountUnavailable" = "Abonnements nicht lesbar. Melde dich im Download und auf der Steam-Website mit demselben Konto an.";
+"workshop.ui.webSignIn" = "Steam-Webanmeldung…";

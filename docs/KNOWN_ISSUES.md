@@ -1,6 +1,6 @@
 # 已知问题与验证边界
 
-以下适用于当前公开版本 0.9.3，并保留早期版本的验证记录。已知问题与尚未验证的环境分开记录，避免将基础测试通过等同于全部集成场景通过。
+以下适用于当前公开版本 0.9.4，并保留早期版本的验证记录。已知问题与尚未验证的环境分开记录，避免将基础测试通过等同于全部集成场景通过。
 
 ## 已知问题
 
@@ -20,6 +20,9 @@
 
 ## 发布验证
 
+0.9.4（build 24），2026-10-29：本机临时测试包执行 166 项测试，跳过 34 项，失败 0 项；另有 1 项测试环境检查。测试包加载应用的中文资源，并修正了一项旧测试对性能设置 JSON 类型的过时断言。真实 Steam 账号的订阅读取和界面交互已验证；未覆盖全部设备、多屏和电源组合。
+
+
 0.9.3（build 22），2026-10-15：
 
 - 本机默认测试 165 项，跳过 34 项，失败 0 项。
@@ -36,7 +39,7 @@
 
 ## English
 
-These notes cover the published 0.9.3 release, retaining earlier validation records. Known failures and untested environments are listed separately.
+These notes cover the published 0.9.4 release, retaining earlier validation records. Known failures and untested environments are listed separately.
 
 ### Known issues
 
@@ -54,6 +57,9 @@ These notes cover the published 0.9.3 release, retaining earlier validation reco
 - Only video projects are supported. Native playback depends on AVFoundation codec support; optional FFmpeg conversion may reduce quality.
 
 ### Validation record
+
+For 0.9.4 (build 24), a temporary local test package ran 166 tests with 34 skips and no failures, plus one test-environment check. The package loaded the app's Chinese resources and corrected an outdated JSON-type assertion in a temporary test copy. Subscription sync and UI interaction were checked with a real Steam account; not all devices, display configurations, or power conditions were covered.
+
 
 For 0.9.3 (build 22), on 2026-10-15, the local default suite ran 165 tests with 34 skips and no failures. With the release-built player and public Steam page integration enabled, the full suite ran 165 tests with 31 skips and no failures. This includes packaged helper shutdown, login-status queries without playback, and public Workshop browsing and video details. Release build and strict signing verification passed for both application bundles.
 

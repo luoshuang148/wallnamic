@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "サブスクリプションのページ構造を認識できません。";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "アカウントが Wallpaper Engine を所有している必要があります。ターミナルで Steam のサインインと Steam Guard の確認を完了してください。";
 "workshop.videoWallpapers" = "動画壁紙 · %@";
+
+"workshop.ui.collection" = "サブスクリプション";
+"workshop.ui.discover" = "壁紙を探す";
+"workshop.ui.sync" = "同期";
+"workshop.ui.all" = "すべて";
+"workshop.ui.pending" = "未インポート";
+"workshop.ui.empty" = "お気に入りの壁紙を見つける";
+"workshop.ui.selected" = "選択済み";
+
+"workshop.ui.syncing" = "サブスクリプションを同期中";
+"workshop.ui.synced" = "同期しました";
+"workshop.ui.syncAccountUnavailable" = "ダウンロード用アカウントの購読を取得できません。同じアカウントで Steam ウェブサイトにもログインしてください。";
+"workshop.ui.webSignIn" = "Steam ウェブにログイン…";

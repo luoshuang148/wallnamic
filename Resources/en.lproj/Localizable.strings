@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "The subscriptions page structure is unrecognized.";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "The account must own Wallpaper Engine. Complete Steam sign-in and Steam Guard verification in Terminal.";
 "workshop.videoWallpapers" = "Video Wallpapers · %@";
+
+"workshop.ui.collection" = "My subscriptions";
+"workshop.ui.discover" = "Discover";
+"workshop.ui.sync" = "Sync subscriptions";
+"workshop.ui.all" = "All";
+"workshop.ui.pending" = "Not imported";
+"workshop.ui.empty" = "Find your next wallpaper";
+"workshop.ui.selected" = "Selected";
+
+"workshop.ui.syncing" = "Syncing subscriptions";
+"workshop.ui.synced" = "Subscriptions synced";
+"workshop.ui.syncAccountUnavailable" = "Could not read subscriptions for the download account. Sign in to the download account and use the same account on the Steam website.";
+"workshop.ui.webSignIn" = "Steam web sign-in…";

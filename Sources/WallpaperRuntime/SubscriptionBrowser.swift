@@ -49,6 +49,20 @@ public struct SubscriptionPage {
       return {ids, total, end, next: end < total ? next.href : null};
     })()
     """#
+    /// Wait for the requested document, rather than accidentally reading the previous page's DOM.
+    static func readinessScript(for target: URL) throws -> String {
+        let json = String(decoding: try JSONSerialization.data(withJSONObject: [target.absoluteString]), as: UTF8.self)
+        return """
+        (() => {
+          const target = new URL(\(json)[0]);
+          const actual = new URL(document.baseURI);
+          if (target.origin !== actual.origin || target.pathname.replace(/\\/$/, '') !== actual.pathname.replace(/\\/$/, '') ||
+              ['appid', 'browsefilter', 'p'].some(key => (target.searchParams.get(key) || (key === 'p' ? '1' : '')) !== (actual.searchParams.get(key) || (key === 'p' ? '1' : '')))) return null;
+          return \(script);
+        })()
+        """
+    }
+
 }
 
 @MainActor public final class SubscriptionBrowser: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
@@ -60,13 +74,14 @@ public struct SubscriptionPage {
     @Published public var errorMessage: String?
     private var navigationError: String?
     private var task: Task<Void, Never>?
-    public override init() {
+    private static var readerRules: WKContentRuleList?
+    public init(loadHome: Bool = true) {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
         webView.navigationDelegate = self; webView.uiDelegate = self
-        webView.load(URLRequest(url: Self.home))
+        if loadHome { webView.load(URLRequest(url: Self.home)) }
     }
     nonisolated public static func isOfficial(_ url: URL) -> Bool {
         url.scheme == "https" && url.user == nil && url.password == nil && url.port == nil &&
@@ -112,6 +127,87 @@ public struct SubscriptionPage {
             catch { self.errorMessage = error.localizedDescription; self.status = L("workshop.subscriptions.readingDidNotFinishThePreviousListWas") }
         }
     }
+    /// Reads a specific account offscreen, without navigating the visible interface.
+    public func readSubscriptions(steamID: String, progress: @escaping (String) -> Void) async throws -> [WorkshopID] {
+        guard steamID.count == 17, steamID.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }) else {
+            throw WallpaperError.message(L("workshop.ui.syncAccountUnavailable"))
+        }
+        let home = URL(string: "https://steamcommunity.com/profiles/\(steamID)/myworkshopfiles/?appid=431960&browsefilter=mysubscriptions&numperpage=30&l=english&p=1")!
+        isReading = true
+        defer { isReading = false; webView.stopLoading() }
+        await prepareOffscreenReader()
+        try Task.checkCancellation()
+        var next: URL? = home
+        var visited = Set<String>(); var all: [WorkshopID] = []; var expectedTotal: Int?
+        for pageNumber in 1...100 {
+            try Task.checkCancellation()
+            guard let target = next, Self.belongsToAccount(target, steamID: steamID), visited.insert(target.absoluteString).inserted else {
+                throw WallpaperError.message(L("workshop.subscriptions.subscriptionPaginationLoopsTheListWasKept"))
+            }
+            progress(String(format: L("workshop.subscriptions.readingPageItemsCollected"), String(pageNumber), String(all.count)))
+            let page = try await readPage(target, steamID: steamID)
+            if let expectedTotal, expectedTotal != page.total { throw WallpaperError.message(L("workshop.subscriptions.theSubscriptionCountChangedWhileReadingReadThe")) }
+            expectedTotal = page.total
+            all += page.ids
+            guard Set(all).count == all.count, all.count == page.end else {
+                throw WallpaperError.message(L("workshop.subscriptions.subscriptionPagesContainDuplicatesOrMissingItemsRead"))
+            }
+            next = page.next
+            if next == nil {
+                guard all.count == page.total else { throw WallpaperError.message(L("workshop.subscriptions.theSubscriptionListIsIncompleteReadItAgain")) }
+                try Task.checkCancellation()
+                return all
+            }
+        }
+        throw WallpaperError.message(L("workshop.subscriptions.subscriptionsExceed100PagesReadingDidNotFinish"))
+    }
+    static func belongsToAccount(_ url: URL, steamID: String) -> Bool {
+        isSubscriptionURL(url) && url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == "profiles/\(steamID)/myworkshopfiles"
+    }
+
+    private func prepareOffscreenReader() async {
+        if Self.readerRules == nil {
+            let rules = #"[{"trigger":{"url-filter":".*","resource-type":["image","media","font"]},"action":{"type":"block"}}]"#
+            Self.readerRules = try? await withCheckedThrowingContinuation { continuation in
+                WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "WallnamicSubscriptionReaderMedia-v1", encodedContentRuleList: rules) { list, error in
+                    if let list { continuation.resume(returning: list) }
+                    else { continuation.resume(throwing: error ?? CocoaError(.coderInvalidValue)) }
+                }
+            }
+        }
+        if let rules = Self.readerRules { webView.configuration.userContentController.add(rules) }
+    }
+
+    private func readPage(_ target: URL, steamID: String) async throws -> SubscriptionPage {
+        navigationError = nil
+        let script = try SubscriptionPage.readinessScript(for: target)
+        webView.load(URLRequest(url: target, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 40))
+        let deadline = Date().addingTimeInterval(45)
+        var finishedAt: Date?
+        repeat {
+            try await Task.sleep(for: .milliseconds(100))
+            try Task.checkCancellation()
+            if let navigationError { throw WallpaperError.message(navigationError) }
+            if let raw = try? await webView.evaluateJavaScript(script), let result = raw as? [String: Any] {
+                if result["error"] == nil {
+                    let page = try SubscriptionPage.decode(result)
+                    webView.stopLoading()
+                    return page
+                }
+                if !webView.isLoading {
+                    if let finishedAt, Date().timeIntervalSince(finishedAt) > 1 {
+                        throw WallpaperError.message(L("workshop.ui.syncAccountUnavailable"))
+                    }
+                    if finishedAt == nil { finishedAt = Date() }
+                }
+            }
+            if !webView.isLoading, let actual = webView.url, !Self.belongsToAccount(actual, steamID: steamID) {
+                throw WallpaperError.message(L("workshop.ui.syncAccountUnavailable"))
+            }
+        } while Date() < deadline
+        throw WallpaperError.message(L("workshop.subscriptions.theSteamSubscriptionsPageTimedOutCheckYour"))
+    }
+
     private func navigate(_ url: URL) async throws {
         navigationError = nil
         webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 40))

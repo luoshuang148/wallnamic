@@ -1,14 +1,14 @@
 # Wallnamic user guide
 
-> **Name change:** Wallnamic was formerly called WallFlow. The published 0.9.3 downloads still use the `WallFlow` name; builds from this source produce `Wallnamic.app`.
+> **Name change:** Wallnamic was formerly called WallFlow. The 0.9.4 download uses the `Wallnamic.app` name.
 
 [Back to the homepage](../README.en.md) · [简体中文](USER_GUIDE.md)
 
-Installation and menu paths below describe the published **0.9.3 (build 22)** app. For newer source builds, also check the [changelog](../CHANGELOG.md).
+Installation and menu paths below describe the published **0.9.4 (build 24)** app.
 
 ## Installation and updates
 
-Download `WallFlow-0.9.3-macOS-arm64.dmg` (or the same-named `.zip`) from the [latest release](https://github.com/luoshuang148/wallnamic/releases/latest). Open the DMG and move `WallFlow.app` to Applications. For the ZIP, extract it first. Requires macOS 14+ and Apple Silicon. Intel has no prebuilt download and has not been fully tested.
+Download `Wallnamic-0.9.4-macOS-arm64.dmg` (or the same-named `.zip`) from the [latest release](https://github.com/luoshuang148/wallnamic/releases/latest). Open the DMG and move `Wallnamic.app` to Applications. For the ZIP, extract it first. Requires macOS 14+ and Apple Silicon. Intel has no prebuilt download and has not been fully tested.
 
 The app is ad-hoc signed, without Developer ID signing or notarization. If macOS blocks it, try opening it first, then follow [Apple's instructions](https://support.apple.com/en-us/102445) under System Settings → Privacy & Security → Open Anyway. The release includes no wallpapers, SteamCMD, or FFmpeg.
 
@@ -38,7 +38,7 @@ Static wallpaper changes affect only each display's **current Space**. Other Spa
 
 Playlists are off by default and app rules start empty. On first launch, login startup defaults to running the background player directly, without a management window or menu-bar icon. Disabling startup in Settings is remembered. Login startup uses macOS Login Items and may need approval and an installation in Applications. macOS may also ask for access to protected folders containing imported media; files you deny access to cannot play.
 
-## Quality and resource use (source candidate build 23)
+## Quality and resource use
 
 Under **设置 → 性能与电源 → 画质模式** (Settings → Performance and power → Quality mode):
 
@@ -49,7 +49,7 @@ HDR and unsupported conversions retain original quality and show a message. Swit
 
 With occlusion pausing enabled, a desktop covered continuously for 30 seconds releases its decoder and restores when visible. Disabling that setting keeps hidden playback running. Lock, display sleep, and inactive sessions release resources immediately. Manual pause on a visible desktop keeps its still frame. Covers use a bounded image cache; animated previews retain original quality.
 
-See the [performance report](performance/resource-efficiency-results.md) for measurements and validation limits. These source changes are not included in the public 0.9.3 build 22 download.
+See the [performance report](performance/resource-efficiency-results.md) for measurements and validation limits.
 
 ## Optional tools
 
@@ -73,7 +73,7 @@ Choose the `steamcmd` executable from the Workshop screen, or use this layout:
 
 ```text
 Applications/
-├── WallFlow.app
+├── Wallnamic.app
 └── SteamTools/
     └── MacOS/
         └── steamcmd
@@ -81,7 +81,7 @@ Applications/
 
 The macOS SteamCMD tool is an Intel application and may require Rosetta on Apple Silicon. Keep the tool outside the signed application bundle so it can update independently.
 
-Enter your account name under **下载账号** (Download account), then click **登录下载账号** (Log in to download account). Complete Steam login and Steam Guard in the terminal opened by the app. You can paste a Workshop link or item ID, or read your subscriptions and select video items to download and import.
+Enter your account name under **下载账号** (Download account), then click **登录下载账号** (Log in to download account). Complete Steam login and Steam Guard in the terminal opened by the app. Subscriptions for the download account sync automatically when Workshop opens; you can refresh, filter, and select videos. If Steam web is signed into a different account, use Steam web sign-in in account settings to sign into the same account. You can also download by link or item ID.
 
 **浏览工坊…** (Browse Workshop) opens the official website inside the app, initially filtered to Video. Search and select an item, then use **下载此作品** (Download this item) on eligible video details pages. Downloads are validated and imported without automatically changing the desktop. Browsing and subscription reading share the persistent WebKit web session.
 

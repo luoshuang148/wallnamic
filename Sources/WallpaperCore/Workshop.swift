@@ -31,16 +31,23 @@ public struct WorkshopItem: Identifiable, Equatable, Sendable {
     public let result: Int
     public let appID: Int
     public let tags: [String]
+    public var previewURL: URL? = nil
     public var isVideo: Bool { result == 1 && appID == 431960 && tags.contains { $0.lowercased() == "video" } }
     public static func decodeResponse(_ data: Data) throws -> [WorkshopItem] {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any], let response = json["response"] as? [String: Any],
               let details = response["publishedfiledetails"] as? [[String: Any]] else { throw WallpaperError.message(L("error.workshop.steamReturnedUnrecognizedWallpaperInformation")) }
         return try details.map { d in
             let id = try WorkshopID(d["publishedfileid"] as? String ?? "")
-            return WorkshopItem(id: id, title: d["title"] as? String ?? String(format: L("error.workshop.id"), String(describing: id.rawValue)),
+            var item = WorkshopItem(id: id, title: d["title"] as? String ?? String(format: L("error.workshop.id"), String(describing: id.rawValue)),
                                 bytes: max(0, Int64(String(describing: d["file_size"] ?? "0")) ?? 0),
                                 result: d["result"] as? Int ?? 0, appID: d["consumer_app_id"] as? Int ?? 0,
                                 tags: (d["tags"] as? [[String: Any]] ?? []).compactMap { $0["tag"] as? String })
+            if let raw = d["preview_url"] as? String, let url = URL(string: raw), url.scheme == "https",
+               let host = url.host?.lowercased(),
+               host == "steamusercontent.com" || host.hasSuffix(".steamusercontent.com") || host == "steamuserimages-a.akamaihd.net" {
+                item.previewURL = url
+            }
+            return item
         }
     }
 }

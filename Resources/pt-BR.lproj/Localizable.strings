@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "A estrutura da página de inscrições não é reconhecida.";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "A conta deve possuir o Wallpaper Engine. Conclua o login da Steam e a verificação do Steam Guard no Terminal.";
 "workshop.videoWallpapers" = "Papéis de Parede em Vídeo · %@";
+
+"workshop.ui.collection" = "Minhas assinaturas";
+"workshop.ui.discover" = "Descobrir";
+"workshop.ui.sync" = "Sincronizar";
+"workshop.ui.all" = "Todos";
+"workshop.ui.pending" = "Não importados";
+"workshop.ui.empty" = "Encontre seu próximo papel de parede";
+"workshop.ui.selected" = "Selecionado";
+
+"workshop.ui.syncing" = "Sincronizando assinaturas";
+"workshop.ui.synced" = "Assinaturas sincronizadas";
+"workshop.ui.syncAccountUnavailable" = "Não foi possível ler as assinaturas. Entre com a mesma conta para downloads e no site do Steam.";
+"workshop.ui.webSignIn" = "Entrar no site do Steam…";

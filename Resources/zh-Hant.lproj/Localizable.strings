@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "無法辨識訂閱頁面結構。";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "帳號必須擁有 Wallpaper Engine。請在「終端機」中完成 Steam 登入與 Steam Guard 驗證。";
 "workshop.videoWallpapers" = "影片桌布 · %@";
+
+"workshop.ui.collection" = "我的訂閱";
+"workshop.ui.discover" = "探索桌布";
+"workshop.ui.sync" = "同步訂閱";
+"workshop.ui.all" = "全部";
+"workshop.ui.pending" = "待下載";
+"workshop.ui.empty" = "從訂閱中挑選你的桌布";
+"workshop.ui.selected" = "已選取";
+
+"workshop.ui.syncing" = "正在同步訂閱";
+"workshop.ui.synced" = "訂閱已同步";
+"workshop.ui.syncAccountUnavailable" = "無法讀取下載帳號的訂閱。請確認已登入下載帳號，並在 Steam 網頁中登入同一帳號。";
+"workshop.ui.webSignIn" = "Steam 網頁登入…";

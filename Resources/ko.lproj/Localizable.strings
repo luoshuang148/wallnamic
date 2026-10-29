@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "구독 페이지 구조를 인식할 수 없습니다.";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "계정이 Wallpaper Engine을 소유해야 합니다. 터미널에서 Steam 로그인과 Steam Guard 인증을 완료하십시오.";
 "workshop.videoWallpapers" = "동영상 배경화면 · %@";
+
+"workshop.ui.collection" = "내 구독";
+"workshop.ui.discover" = "배경화면 찾기";
+"workshop.ui.sync" = "구독 동기화";
+"workshop.ui.all" = "전체";
+"workshop.ui.pending" = "가져오지 않음";
+"workshop.ui.empty" = "마음에 드는 배경화면을 찾아보세요";
+"workshop.ui.selected" = "선택됨";
+
+"workshop.ui.syncing" = "구독 동기화 중";
+"workshop.ui.synced" = "구독 동기화 완료";
+"workshop.ui.syncAccountUnavailable" = "구독을 읽을 수 없습니다. 다운로드와 Steam 웹사이트에 동일한 계정으로 로그인하세요.";
+"workshop.ui.webSignIn" = "Steam 웹 로그인…";

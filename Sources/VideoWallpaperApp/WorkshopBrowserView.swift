@@ -62,7 +62,7 @@ struct WorkshopBrowserView: View {
                     if let item = browser.currentItem, item.isVideo { model.downloadItem(item.id) }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(browser.isLoading || browser.isChecking || browser.currentItem?.isVideo != true || model.isBusy || library.isBusy)
+                .disabled(browser.isLoading || browser.isChecking || browser.currentItem?.isVideo != true || (model.isBusy && !model.isSynchronizing) || library.isBusy)
             }
             HStack {
                 if model.isBusy || library.isBusy { ProgressView().controlSize(.small) }

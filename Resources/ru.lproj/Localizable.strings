@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "Структура страницы подписок не распознана.";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "Учётная запись должна владеть Wallpaper Engine. Завершите вход в Steam и проверку Steam Guard в Терминале.";
 "workshop.videoWallpapers" = "Видеообои · %@";
+
+"workshop.ui.collection" = "Мои подписки";
+"workshop.ui.discover" = "Обзор";
+"workshop.ui.sync" = "Синхронизация";
+"workshop.ui.all" = "Все";
+"workshop.ui.pending" = "Не импортировано";
+"workshop.ui.empty" = "Найдите новые обои";
+"workshop.ui.selected" = "Выбрано";
+
+"workshop.ui.syncing" = "Синхронизация подписок";
+"workshop.ui.synced" = "Подписки синхронизированы";
+"workshop.ui.syncAccountUnavailable" = "Не удалось прочитать подписки. Войдите в одну и ту же учётную запись для загрузок и на сайте Steam.";
+"workshop.ui.webSignIn" = "Вход на сайт Steam…";

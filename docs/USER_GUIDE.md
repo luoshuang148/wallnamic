@@ -1,15 +1,15 @@
 # Wallnamic 使用指南
 
-> **名称说明：** Wallnamic 原名 WallFlow。当前公开 0.9.3 安装包仍使用 `WallFlow` 名称；本仓库源码构建输出为 `Wallnamic.app`。
+> **名称说明：** Wallnamic 原名 WallFlow。0.9.4 安装包使用 `Wallnamic.app` 名称。
 
 [返回首页](../README.md) · [English](USER_GUIDE.en.md)
 
-本指南的安装与操作入口对应公开发布的 **0.9.3（build 22）**。源码构建的新增行为请同时查阅[更新日志](../CHANGELOG.md)。
+本指南的安装与操作入口对应公开发布的 **0.9.4（build 24）**。
 
 ## 下载安装
 
-1. 从 [最新 Release](https://github.com/luoshuang148/wallnamic/releases/latest) 下载 `WallFlow-0.9.3-macOS-arm64.dmg`（或同名 `.zip`），适用于 macOS 14+ 的 Apple Silicon Mac。
-2. 打开 DMG，将 `WallFlow.app` 拖入“应用程序”，再打开应用；使用 ZIP 时先解压再拖入。
+1. 从 [最新 Release](https://github.com/luoshuang148/wallnamic/releases/latest) 下载 `Wallnamic-0.9.4-macOS-arm64.dmg`（或同名 `.zip`），适用于 macOS 14+ 的 Apple Silicon Mac。
+2. 打开 DMG，将 `Wallnamic.app` 拖入“应用程序”，再打开应用；使用 ZIP 时先解压再拖入。
 3. 若 macOS 阻止打开，请按 [Apple 的说明](https://support.apple.com/zh-cn/102445)，在尝试打开后到 **系统设置 → 隐私与安全性 → 仍要打开** 为该应用确认例外。
 4. 导入自己的完整视频壁纸文件夹即可使用；下载创意工坊作品或转换视频时，再配置下方的可选工具。
 
@@ -37,7 +37,7 @@ shasum -a 256 -c SHA256SUMS.txt
 
 轮播默认关闭，应用规则默认为空。首次打开默认启用登录后直接运行后台播放器，不显示管理窗口或菜单栏图标；在设置中关闭后会保留你的选择。登录启动使用 macOS 登录项服务，可能需要把应用放入“应用程序”文件夹并在系统设置中批准。
 
-## 画质与资源占用（源码候选 build 23）
+## 画质与资源占用
 
 在 **设置 → 性能与电源 → 画质模式** 选择：
 
@@ -48,7 +48,7 @@ HDR 或无法可靠转换的视频保留原画质并提示。切回原画质会�
 
 开启“桌面完全被遮挡时暂停”后，持续遮挡 30 秒会释放视频解码资源，重新可见时恢复。关闭该选项会继续隐藏播放。锁屏、显示器休眠和会话失活会立即释放；可见桌面上的手动暂停保留静止画面。管理窗口中的封面采用有限缓存，动态预览仍保持原画质。
 
-资源测量方法与验证边界见[性能报告](performance/resource-efficiency-results.md)。上述改动尚未包含在公开 0.9.3 build 22 安装包中。
+资源测量方法与验证边界见[性能报告](performance/resource-efficiency-results.md)。
 
 ## 可选工具
 
@@ -72,7 +72,7 @@ brew install ffmpeg
 
 ```text
 dist/
-├── WallFlow.app
+├── Wallnamic.app
 └── SteamTools/
     └── MacOS/
         └── steamcmd
@@ -80,7 +80,7 @@ dist/
 
 Mac 版 SteamCMD 为 Intel 程序，Apple Silicon 上可能需要 Rosetta。工具在独立目录中更新，不写入应用签名包。
 
-在创意工坊页面填写下载账号并登录；支持粘贴作品链接或编号下载，或读取自己的订阅列表后选择视频批量导入。浏览工坊与读取订阅共享 WebKit 网页会话；Steam 网页与 SteamCMD 是独立登录会话。订阅同步不会订阅、取消订阅或删除本地壁纸。
+在创意工坊页面填写下载账号并登录；支持通过作品链接或编号下载；打开工坊时自动同步下载账号的订阅，并可手动刷新、筛选和批量选择视频。若 Steam 网页账号不匹配，请在账号设置中通过“Steam 网页登录”登录同一账号。浏览工坊与读取订阅共享 WebKit 网页会话；Steam 网页与 SteamCMD 是独立登录会话。订阅同步不会订阅、取消订阅或删除本地壁纸。
 
 ## 本地数据
 

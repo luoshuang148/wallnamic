@@ -2,19 +2,25 @@
 
 仅记录已有提交能确认的变化。日期使用 Asia/Shanghai。
 
-## 0.9.4 — 未发布 / Unreleased (build 24)
+## [0.9.4](https://github.com/luoshuang148/wallnamic/releases/tag/v0.9.4) — 2026-10-29 (build 24)
 
 - 项目正式更名为 **Wallnamic**（原 WallFlow）；更新窗口、菜单、提示、应用显示名、构建产物、文档和仓库链接。
 - 保留 Bundle Identifier、设置目录、播放器路径、登录项身份和进程通信协议，继续兼容已有安装与数据。
-- 源码构建输出为 `Wallnamic.app`；公开 0.9.3 附件仍保留原 `WallFlow` 名称。
+- 安装包使用 `Wallnamic.app` 名称；旧版附件保留原 `WallFlow` 名称。
 - 默认保留桌面原画质；新增独立省电模式（最长边 1920、最高 30fps、不放大），原件回退、HDR 提示、单任务生成与 1 GiB 缓存。
 - 状态心跳调整为 5 秒，设置以通知同步、30 秒元数据兜底；减少重复写入和不变状态的界面发布。
 - 静音预览使用无声轨素材，桌面循环项遵守当前声音路由；挂起和长期遮挡时卸载闲置解码资源。
 - 取消过时准备任务，列表和封面改用异步缩略图及 24 MiB 缓存；同路径封面在重新导入或打开时刷新。
+- 创意工坊改为缩略图网格；进入页面自动同步下载账号订阅，支持筛选、手动刷新和原地同步反馈。
+- 同步期间可继续浏览和选择；冲突任务会先取消同步，保留手动选择。
+- 新增普通视频文件导入和前台应用暂停选项。
 - 中英双语界面与本地化校验。
 - 新增繁体中文、日语、韩语、德语、法语、西班牙语、俄语和巴西葡萄牙语界面；构建脚本自动打包全部 `.lproj`，本地化校验器覆盖所有语言。新语言为初稿，尚未经母语者审校或实机验收。
 - 设置新增“语言”页，可在跟随系统与十种界面语言之间即时切换；主窗口、菜单和播放器语言同步，切换不中断壁纸播放。
 - Renamed the project to **Wallnamic** (formerly WallFlow); preserved identifiers and IPC for compatibility.
+- Redesign Workshop with thumbnail cards, automatic subscription sync, filtering, and inline sync feedback.
+- Continue browsing and selecting during sync; conflicting work cancels sync before starting.
+- Import plain video files and optionally pause when any application is in front.
 - Preserve original desktop quality by default; add an optional 1920 / 30fps energy-saving mode, source fallback, HDR messaging, serial generation, and a 1 GiB cache.
 - Replace frequent polling with notifications, a five-second heartbeat, and a 30-second metadata fallback.
 - Use silent preview assets, enforce audio policy across loop items, release inactive decoders, and cancel obsolete preparations.

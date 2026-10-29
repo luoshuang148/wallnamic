@@ -331,3 +331,16 @@
 "workshop.subscriptions.theSubscriptionsPageStructureIsUnrecognized" = "订阅页面结构无法识别。";
 "workshop.theAccountMustOwnWallpaperEngineCompleteSteam" = "账号须拥有 Wallpaper Engine；在终端完成 Steam 登录与 Steam Guard 验证。";
 "workshop.videoWallpapers" = "视频壁纸 · %@";
+
+"workshop.ui.collection" = "我的订阅";
+"workshop.ui.discover" = "发现壁纸";
+"workshop.ui.sync" = "同步订阅";
+"workshop.ui.all" = "全部";
+"workshop.ui.pending" = "待下载";
+"workshop.ui.empty" = "从订阅中挑选你的壁纸";
+"workshop.ui.selected" = "已选择";
+
+"workshop.ui.syncing" = "正在同步订阅";
+"workshop.ui.synced" = "订阅已同步";
+"workshop.ui.syncAccountUnavailable" = "无法读取下载账号的订阅。请确认已登录下载账号，并在 Steam 网页中登录同一账号。";
+"workshop.ui.webSignIn" = "Steam 网页登录…";

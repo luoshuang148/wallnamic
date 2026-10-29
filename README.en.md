@@ -24,7 +24,7 @@
 
 Wallnamic is for Mac users who want video wallpapers, a personal wallpaper library, or support for importing Wallpaper Engine video projects. Built with SwiftUI, AppKit, and AVFoundation, it plays local video projects and uses SteamCMD to download Workshop videos your account can access.
 
-> **Before downloading:** The published app is **0.9.3**, for **macOS 14+ and Apple Silicon (M-series chips)**. The app interface is currently **Simplified Chinese**. Only **video wallpapers** are supported; Scene, web, and application wallpapers are outside the current scope. The app is not notarized by Apple.
+> **Before downloading:** The published app is **0.9.4**, for **macOS 14+ and Apple Silicon (M-series chips)**. The app supports ten interface languages. Only **video wallpapers** are supported; Scene, web, and application wallpapers are outside the current scope. The app is not notarized by Apple.
 
 [Features](#features) · [Install](#install) · [Get started](#get-started) · [FAQ](#faq) · [Contribute](#contribute)
 
@@ -37,20 +37,20 @@ Wallnamic is for Mac users who want video wallpapers, a personal wallpaper libra
 | Personal library | Search by name or ID, rename, favorite, group, and sort |
 | Automatic switching | Configure sequential or random playlists, day/night switching, and target displays |
 | Audio controls | Mute or play audio, with sound from only one playing display at a time |
-| Resource efficiency (source candidate) | Keep original quality by default; optionally cap playback at 1920 / 30fps and release inactive decoders |
+| Resource efficiency | Keep original quality by default; optionally cap playback at 1920 / 30fps and release inactive decoders |
 | Playback policies | Adjust playback for desktop occlusion, battery, Low Power Mode, lock, sleep, or specific apps |
-| Workshop imports | Browse the official Workshop in-app and download videos, use links/IDs, read subscriptions, or scan local downloads |
+| Workshop imports | Browse subscription thumbnails, sync and filter them, explore the official Workshop, download by link, or import local items |
 | Format conversion | Use optional FFmpeg to convert unsupported videos while retaining originals |
 | Still frames on exit | Keep playback running after quitting management; save a still frame on complete exit and restore settings on relaunch |
 
-Source builds may differ from the published download; check the [changelog](CHANGELOG.md). Not every hardware, codec, or display configuration has been validated. See [known issues](docs/KNOWN_ISSUES.md).
+Check the [changelog](CHANGELOG.md) for release changes. Not every hardware, codec, or display configuration has been validated. See [known issues](docs/KNOWN_ISSUES.md).
 
 ## Install
 
-> **Name change:** Wallnamic was formerly called WallFlow. The published 0.9.3 downloads still use the `WallFlow` name; builds from this source produce `Wallnamic.app`.
+> **Name change:** Wallnamic was formerly called WallFlow. The 0.9.4 download uses the `Wallnamic.app` name.
 
-1. Open [Releases](https://github.com/luoshuang148/wallnamic/releases/latest) and download `WallFlow-0.9.3-macOS-arm64.dmg` (or the same-named `.zip`).
-2. Open the DMG, move `WallFlow.app` to **Applications**, and open it. For the ZIP, extract it first, then move the app.
+1. Open [Releases](https://github.com/luoshuang148/wallnamic/releases/latest) and download `Wallnamic-0.9.4-macOS-arm64.dmg` (or the same-named `.zip`).
+2. Open the DMG, move `Wallnamic.app` to **Applications**, and open it. For the ZIP, extract it first, then move the app.
 3. If macOS blocks the app, try opening it first, then use **System Settings → Privacy & Security → Open Anyway**. Follow [Apple's official instructions](https://support.apple.com/en-us/102445) to approve an exception for this app.
 
 The download is ad-hoc signed, without Developer ID signing or Apple notarization. There is no prebuilt Intel download, and Intel hardware has not been fully tested. Wallpapers, SteamCMD, and FFmpeg are not bundled.
@@ -70,8 +70,8 @@ Choose **停止壁纸并完全退出** (Stop wallpaper and completely quit) in S
 
 ## Get started
 
-1. Prepare a complete video wallpaper folder containing `project.json` and its video.
-2. Choose **创意工坊 → 其他来源 → 导入壁纸文件夹…** (Workshop → Other sources → Import wallpaper folder).
+1. Prepare a video file or a complete video wallpaper folder containing `project.json`.
+2. Add the video from the library, or choose Workshop → Other sources → Import wallpaper folder.
 3. Select the wallpaper, choose **应用到** (Display), **画面显示** (Fill/Fit), and **声音** (Audio), then apply it.
 
 Natively playable MP4 video projects need no additional tools. **Local imports do not require a Steam account or a Wallpaper Engine purchase.** Workshop downloads require [Valve's SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) and a Steam account that owns Wallpaper Engine and can access the item. Other video formats may require FFmpeg.
@@ -92,9 +92,9 @@ The [user guide](docs/USER_GUIDE.en.md) covers tool setup, playlists, power poli
 
 **Having trouble installing, playing, or converting?** Check the [user guide](docs/USER_GUIDE.en.md#troubleshooting) and [known issues](docs/KNOWN_ISSUES.md), then submit reproduction steps using the [issue forms](https://github.com/luoshuang148/wallnamic/issues/new/choose). [Get help](SUPPORT.md)
 
-## Source localization status
+## Interface languages
 
-The source now includes ten interface languages: Simplified and Traditional Chinese, English, Japanese, Korean, German, French, Spanish, Russian, and Brazilian Portuguese. Settings → Language switches between Follow System and any of them immediately, and resource checks and compilation pass. The public **0.9.3 package still has a Chinese-only interface**. Everything beyond Simplified Chinese and English is an initial translation that has not yet been reviewed by native speakers or visually accepted in the running app, so each language still needs a full UI pass before a multilingual binary release. See [localization and language support](docs/LOCALIZATION.md).
+Choose from Simplified and Traditional Chinese, English, Japanese, Korean, German, French, Spanish, Russian, and Brazilian Portuguese in Settings. Translations beyond Simplified Chinese and English are initial drafts and have not had native-speaker review or full in-app acceptance. See [localization](docs/LOCALIZATION.md).
 
 ## Build from source
 

@@ -53,7 +53,7 @@ for f in Resources/*.lproj/Localizable.strings; do plutil -lint "$f"; done
 ## 验收状态
 
 - 0.9.4 的 zh-Hans 与 en 做过一轮实机界面验收（记录见下）。
-- 2026-10-23 新增的繁体中文、日语、韩语、德语、法语、西班牙语、俄语和巴西葡萄牙语来自集中翻译初稿，已通过键值/格式校验与构建，但尚未由母语者审校，也未做实机界面验收。发布多语言安装包前，需逐语言检查主窗口、设置、创意工坊、菜单栏、弹窗和长文本截断；未经实机验收不要对外宣称完整的多语言体验。
+- 2026-10-23 新增的繁体中文、日语、韩语、德语、法语、西班牙语、俄语和巴西葡萄牙语来自集中翻译初稿，已通过键值/格式校验与构建，但尚未由母语者审校，也未做实机界面验收。0.9.4 已包含这些语言，但仍需逐语言检查主窗口、设置、创意工坊、菜单栏、弹窗和长文本截断。
 - 同日完成自动校验：10 种语言 × 333 键通过 `check_localization.py` 与 23 个单元测试；`dist/Wallnamic.app` 及内嵌 `WallFlowPlayer.app` 均包含 10 个 `.lproj`，`codesign --verify --deep --strict` 通过；用独立探测 App 以 `-AppleLanguages` 逐语言读取 `library.settings` 与 `workshop.browser.steamLanguage`，返回值与表一致，`pt-PT` 匹配到 `pt-BR`，未支持的语言回退到 `zh-Hans`。
 - 同日用隔离的 `CFFIXED_USER_HOME` 启动 `dist/Wallnamic.app`，在设置 → 语言中依次选择 English、日本語、简体中文和跟随系统：窗口、设置、状态菜单与应用菜单即时切换，偏好写入正确，辅助功能树只暴露当前设置页。播放器的分布式通知接收端已接入，但未完成“应用内切换后播放器弹窗实时换语言”的双进程验收。
 

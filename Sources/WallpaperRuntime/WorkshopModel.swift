@@ -7,13 +7,18 @@ public enum WorkshopImportResult: Equatable { case imported, existing }
 private struct WorkshopPreferences: Codable { var account: String; var toolPath: String? }
 
 @MainActor public final class WorkshopModel: ObservableObject {
+    public typealias SubscriptionLoader = (String, @escaping (String) -> Void) async throws -> [WorkshopID]
     public typealias ItemLoader = ([WorkshopID]) async throws -> [WorkshopItem]
+    @Published public private(set) var isSynchronizing = false
+    @Published public private(set) var syncCompletion = 0
+    public private(set) var candidatesAccount: String?
     @Published public var input = ""
     @Published public var account = ""
     @Published public private(set) var tool: URL?
     @Published public private(set) var accounts: [String] = []
     @Published public private(set) var candidates: [WorkshopItem] = []
-    @Published public var selected: Set<WorkshopID> = []
+    @Published public var selected: Set<WorkshopID> = [] { didSet { selectionRevision += 1 } }
+    private var selectionRevision = 0
     @Published public private(set) var isBusy = false
     @Published public private(set) var status = L("workshop.status.ready")
     @Published public private(set) var completed = 0
@@ -23,11 +28,25 @@ private struct WorkshopPreferences: Codable { var account: String; var toolPath:
     private let library: LibraryModel
     private let preferencesURL: URL
     private let itemLoader: ItemLoader
+    private let subscriptionLoader: SubscriptionLoader
+    private let accountResolver: (String) -> String?
     private var operation: Task<Void, Never>?
+    private var queuedOperation: Task<Void, Never>?
     public init(library: LibraryModel, preferencesURL: URL? = nil,
-                itemLoader: @escaping ItemLoader = { try await WorkshopModel.fetchItems($0) }) {
+                itemLoader: @escaping ItemLoader = { try await WorkshopModel.fetchItems($0) },
+                accountResolver: @escaping (String) -> String? = { SteamAccountAvatar.steamID(account: $0) },
+                subscriptionLoader: SubscriptionLoader? = nil) {
         self.library = library
         self.itemLoader = itemLoader
+        if let subscriptionLoader {
+            self.subscriptionLoader = subscriptionLoader
+        } else {
+            let browser = SubscriptionBrowser(loadHome: false)
+            self.subscriptionLoader = { id, progress in
+                try await browser.readSubscriptions(steamID: id, progress: progress)
+            }
+        }
+        self.accountResolver = accountResolver
         self.preferencesURL = preferencesURL ?? library.storeURL.deletingLastPathComponent().appendingPathComponent("workshop.json")
         let saved = (try? Data(contentsOf: self.preferencesURL)).flatMap { try? JSONDecoder().decode(WorkshopPreferences.self, from: $0) }
         tool = saved?.toolPath.map { URL(fileURLWithPath: $0) } ?? SteamPaths.discoverTool()
@@ -79,9 +98,20 @@ private struct WorkshopPreferences: Codable { var account: String; var toolPath:
         }
         return tool
     }
-    public func cancel() { operation?.cancel() }
-    public func shutdown() { operation?.cancel() }
+    public func cancel() { queuedOperation?.cancel(); queuedOperation = nil; operation?.cancel() }
+    public func shutdown() { cancel() }
     private func start(_ work: @escaping @MainActor () async throws -> Void) {
+        if isSynchronizing, let current = operation {
+            guard queuedOperation == nil else { return }
+            current.cancel()
+            queuedOperation = Task { [weak self] in
+                await current.value
+                guard !Task.isCancelled, let self else { return }
+                self.queuedOperation = nil
+                self.start(work)
+            }
+            return
+        }
         guard !isBusy else { return }
         isBusy = true; errorMessage = nil; failures = []; completed = 0; total = 0
         operation = Task { [weak self] in
@@ -111,6 +141,31 @@ private struct WorkshopPreferences: Codable { var account: String; var toolPath:
     }
     public func downloadSelected() { let items = candidates.filter { selected.contains($0.id) }; guard !items.isEmpty else { return }; start { [self] in try await download(items) } }
     public func loadSubscriptions(_ ids: [WorkshopID]) { start { [self] in try await loadCandidates(ids) } }
+    public func synchronizeSubscriptions() async {
+        // A changed account cancels and drains the earlier read before starting another.
+        if isSynchronizing, let current = operation { current.cancel(); await current.value }
+        guard !isBusy else { return }
+        let requestedAccount = account
+        if candidatesAccount != requestedAccount { candidates = []; selected = [] }
+        let initialSelectionRevision = selectionRevision
+        isSynchronizing = true
+        start { [self] in
+            defer { isSynchronizing = false }
+            guard let id = accountResolver(requestedAccount) else {
+                throw WallpaperError.message(L("workshop.ui.syncAccountUnavailable"))
+            }
+            status = L("workshop.ui.syncing")
+            let ids = try await subscriptionLoader(id) { [weak self] in self?.status = $0 }
+            try Task.checkCancellation()
+            guard requestedAccount == account else { throw CancellationError() }
+            try await loadCandidates(ids, expectedAccount: requestedAccount, initialSelectionRevision: initialSelectionRevision)
+            candidatesAccount = requestedAccount
+            syncCompletion += 1
+        }
+        guard let task = operation else { isSynchronizing = false; return }
+        await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
+    }
+
     public func loadManifest(_ file: URL) {
         start { [self] in
             let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
@@ -118,7 +173,7 @@ private struct WorkshopPreferences: Codable { var account: String; var toolPath:
             try await loadCandidates(SteamKeyValues.installedIDs(String(contentsOf: file, encoding: .utf8)))
         }
     }
-    private func loadCandidates(_ ids: [WorkshopID]) async throws {
+    private func loadCandidates(_ ids: [WorkshopID], expectedAccount: String? = nil, initialSelectionRevision: Int? = nil) async throws {
         let ids = Array(Set(ids)).sorted { $0.rawValue < $1.rawValue }
         guard ids.count <= 10000 else { throw WallpaperError.message(L("workshop.status.subscriptionsExceed10000ItemsNothingWasRead")) }
         status = String(format: L("workshop.status.readingInformationForItems"), String(describing: ids.count)); total = ids.count
@@ -130,8 +185,15 @@ private struct WorkshopPreferences: Codable { var account: String; var toolPath:
             completed += batch.count; status = String(format: L("workshop.status.filteringVideos"), String(describing: completed), String(describing: total))
         }
         try Task.checkCancellation()
+        if let expectedAccount, expectedAccount != account { throw CancellationError() }
         let videos = all.filter(\.isVideo)
-        candidates = videos; selected = Set(videos.filter { !alreadyImported($0.id) }.map(\.id))
+        candidates = videos
+        let available = Set(videos.filter { !alreadyImported($0.id) }.map(\.id))
+        if let initialSelectionRevision, selectionRevision != initialSelectionRevision {
+            selected.formIntersection(available)
+        } else {
+            selected = available
+        }
         status = String(format: L("workshop.status.foundVideosOutOfItemsTheRestAre"), String(describing: ids.count), String(describing: videos.count))
     }
     public static func fetchItems(_ ids: [WorkshopID]) async throws -> [WorkshopItem] {
