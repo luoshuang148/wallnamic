@@ -379,38 +379,50 @@ private struct WallpaperPreview: View {
     @State private var surfaceVisible = false
     @State private var poster: CGImage?
     var body: some View {
+        scaledCanvas
+            .frame(height: 248)
+            .task(id: taskKey) { await loadPoster() }
+        .onAppear { preview.setProject(project) }
+            .onChange(of: projectKey) { _,_ in frameReady = false; preview.setProject(project) }
+            .onChange(of: active) { _,value in preview.setVisible(surfaceVisible && value) }
+            .onDisappear { preview.stop() }
+    }
+    private var taskKey: String { (project.previewPath ?? "") + "\0" + String(revision) }
+    private var projectKey: String { project.id + "\n" + project.videoPath }
+    private func loadPoster() async {
+        poster = nil
+        guard let path = project.previewPath else { return }
+        let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 1024)
+        guard !Task.isCancelled else { return }
+        poster = result
+    }
+    private var scaledCanvas: some View {
         let posterRatio: Double = poster.map { Double($0.width) / Double($0.height) } ?? 16.0 / 9.0
         let ratio: Double = frameReady ? (preview.aspectRatio ?? posterRatio) : posterRatio
-        GeometryReader { geometry in
-            let height: CGFloat = min(248, geometry.size.width / ratio)
-            ZStack {
-                if let poster { Image(decorative: poster, scale: 1).resizable().scaledToFit() }
-                else { Thumbnail(path:nil) }
-                VideoPreviewSurface(player:preview.player,onVisibility:{ visible in
-                    surfaceVisible = visible
-                    preview.setVisible(visible && active)
-                },onReady:{ frameReady = $0 })
-                    .opacity(frameReady ? 1 : 0)
-                if let message = preview.errorMessage {
-                    VStack { HStack { Spacer(); Image(systemName:"exclamationmark.triangle.fill").foregroundStyle(.orange).help(message) }; Spacer() }.padding(10)
-                }
-            }
-            .frame(width:height*ratio,height:height)
-            .clipShape(RoundedRectangle(cornerRadius:14))
-            .shadow(color:.black.opacity(0.1),radius:10,y:3)
-            .frame(width:geometry.size.width,height:geometry.size.height)
-        }.frame(height:248)
-        .task(id: (project.previewPath ?? "") + "\0" + String(revision)) {
-            poster = nil
-            guard let path = project.previewPath else { return }
-            let result = await ThumbnailStore.shared.image(url: URL(fileURLWithPath: path), maximumPixelSize: 1024)
-            guard !Task.isCancelled else { return }
-            poster = result
+        return GeometryReader { geometry in
+            scaledContent(ratio: ratio, height: min(248, geometry.size.width / ratio))
+                .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .onAppear { preview.setProject(project) }
-        .onChange(of:project.id + "\n" + project.videoPath) { _,_ in frameReady = false; preview.setProject(project) }
-        .onChange(of:active) { _,value in preview.setVisible(surfaceVisible && value) }
-        .onDisappear { preview.stop() }
+    }
+    private func scaledContent(ratio: Double, height: CGFloat) -> some View {
+        ZStack {
+            if let poster { Image(decorative: poster, scale: 1).resizable().scaledToFit() }
+            else { Thumbnail(path:nil) }
+            videoSurface
+            if let message = preview.errorMessage {
+                VStack { HStack { Spacer(); Image(systemName:"exclamationmark.triangle.fill").foregroundStyle(.orange).help(message) }; Spacer() }.padding(10)
+            }
+        }
+        .frame(width:height*ratio,height:height)
+        .clipShape(RoundedRectangle(cornerRadius:14))
+        .shadow(color:.black.opacity(0.1),radius:10,y:3)
+    }
+    private var videoSurface: some View {
+        VideoPreviewSurface(player:preview.player,onVisibility:{ visible in
+            surfaceVisible = visible
+            preview.setVisible(visible && active)
+        },onReady:{ frameReady = $0 })
+            .opacity(frameReady ? 1 : 0)
     }
 }
 
