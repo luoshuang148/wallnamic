@@ -379,10 +379,10 @@ private struct WallpaperPreview: View {
     @State private var surfaceVisible = false
     @State private var poster: CGImage?
     var body: some View {
-        let posterRatio = poster.map { Double($0.width) / Double($0.height) } ?? 16.0/9.0
-        let ratio = frameReady ? (preview.aspectRatio ?? posterRatio) : posterRatio
+        let posterRatio: Double = poster.map { Double($0.width) / Double($0.height) } ?? 16.0 / 9.0
+        let ratio: Double = frameReady ? (preview.aspectRatio ?? posterRatio) : posterRatio
         GeometryReader { geometry in
-            let height = min(248,geometry.size.width/ratio)
+            let height: CGFloat = min(248, geometry.size.width / ratio)
             ZStack {
                 if let poster { Image(decorative: poster, scale: 1).resizable().scaledToFit() }
                 else { Thumbnail(path:nil) }
